@@ -2,3 +2,6 @@ datasets
 transformers
 torch
 beir
+mteb
+sentence_transformers
+tqdm
