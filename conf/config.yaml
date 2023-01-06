@@ -6,9 +6,14 @@ template:
 task: NQ
 method: og
 overwrite_results: False
+device: cuda:1
+max_gen: 3
 
-syn_doc: ./${generation_path}/${task}/${generator.name}/${templates.template_name}.pkl
-save_path: ./${output_path}/${task}/${generator.name}/${retriever.name}/${templates.template_name}_${method}.json
+syn_doc_path: ./${generation_path}/${task}/${generator.name}
+syn_doc_file: ./${syn_doc_path}/${templates.template_name}.pkl
+
+save_path: ./${output_path}/${task}/${generator.name}/${retriever.name}
+save_file: ./${save_path}/${templates.template_name}_${method}.json
 
 defaults:
   - retriever: contriever

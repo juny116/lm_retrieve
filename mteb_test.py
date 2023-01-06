@@ -8,18 +8,19 @@ import pickle
 import torch
 import hydra
 from omegaconf import DictConfig, OmegaConf
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
 def main(config: DictConfig) -> None:
-    syn_doc_path = config.get('syn_doc')
+    syn_doc = config.get('syn_doc_file')
     task_name = config.get('task')
 
-    with open(syn_doc_path, 'rb') as f:
+    with open(syn_doc, 'rb') as f:
         query_dict = pickle.load(f)
 
-    model = SentenceTransformer(config['retriever']['name'])
+    model = SentenceTransformer(config['retriever']['model_name_or_path'])
     evaluation = MTEB(tasks=[task_name])
 
     eval_splits = None
@@ -42,10 +43,16 @@ def main(config: DictConfig) -> None:
             logger.info(f"Loading dataset for {task.description['name']}")
             task.load_data(eval_splits=task_eval_splits)
 
-            if config['method'] != 'og':
+            if config['method'] == 'syn':
+                print('syn')
                 queries = task.queries['test']
                 for key, value in queries.items():
-                    queries[key] = query_dict[key]['output'][config['method']]
+                    queries[key] = query_dict[key]['output'][0]
+            elif config['method'] == 'syn_q':
+                print('syn_q')
+                queries = task.queries['test']
+                for key, value in queries.items():
+                    queries[key] = query_dict[key]['output'][0] + value
 
             # run evaluation
             task_results = {
@@ -63,7 +70,9 @@ def main(config: DictConfig) -> None:
                 logger.info(f"Scores: {results}")
 
             # save results
-            with open(config['save_path'], "w") as f_out:
+            p = Path(config['save_path'])
+            p.mkdir(parents=True, exist_ok=True)
+            with open(config['save_file'], "w") as f_out:
                 json.dump(task_results, f_out, indent=2, sort_keys=True)
 
             evaluation_results[task.description['name']] = task_results
