@@ -6,78 +6,75 @@ import json
 import os
 import pickle
 import torch
+import hydra
+from omegaconf import DictConfig, OmegaConf
 
 logger = logging.getLogger(__name__)
 
-cuda = torch.device('cuda:7')
+@hydra.main(version_base=None, config_path="conf", config_name="config")
+def main(config: DictConfig) -> None:
+    syn_doc_path = config.get('syn_doc')
+    task_name = config.get('task')
 
-base_path = 'generation'
-file_name = "dbpedia"
+    with open(syn_doc_path, 'rb') as f:
+        query_dict = pickle.load(f)
 
-with open(f'{base_path}/{file_name}_dict.pkl', 'rb') as f:
-    scifact = pickle.load(f)
+    model = SentenceTransformer(config['retriever']['name'])
+    evaluation = MTEB(tasks=[task_name])
 
-# Define the sentence-transformers model name
-model_name = "facebook/contriever-msmarco"
+    eval_splits = None
+    kwargs = {}
+    evaluation_results = {}
 
-model = SentenceTransformer(model_name)
-model = model.to(cuda)
-evaluation = MTEB(tasks=["DBPedia"])
+    while len(evaluation.tasks) > 0:
+        task = evaluation.tasks[0]
+        task.save_suffix = 'ours'
+        logger.info(f"\n\n********************** Evaluating {task.description['name']} **********************")
 
-eval_splits = None
-output_folder='results'
-overwrite_results=True
-kwargs = {}
-evaluation_results = {}
-
-while len(evaluation.tasks) > 0:
-    task = evaluation.tasks[0]
-    logger.info(f"\n\n********************** Evaluating {task.description['name']} **********************")
-
-    if output_folder is not None:
-        save_path = os.path.join(output_folder, f"{task.description['name']}{task.save_suffix}.json")
-        if os.path.exists(save_path) and overwrite_results is False:
+        if os.path.exists(config['save_path']) and config['overwrite_results'] is False:
             logger.warn(f"WARNING: {task.description['name']} results already exists. Skipping.")
             del evaluation.tasks[0]
             continue
-    try:
-        task_eval_splits = eval_splits if eval_splits is not None else task.description.get("eval_splits", [])
+        try:
+            task_eval_splits = eval_splits if eval_splits is not None else task.description.get("eval_splits", [])
 
-        # load data
-        logger.info(f"Loading dataset for {task.description['name']}")
-        task.load_data(eval_splits=task_eval_splits)
+            # load data
+            logger.info(f"Loading dataset for {task.description['name']}")
+            task.load_data(eval_splits=task_eval_splits)
 
-        queries = task.queries['test']
-        for key, value in queries.items():
-            queries[key] = scifact[key]['output'][1]
+            if config['method'] != 'og':
+                queries = task.queries['test']
+                for key, value in queries.items():
+                    queries[key] = query_dict[key]['output'][config['method']]
 
-        # run evaluation
-        task_results = {
-            "mteb_version": __version__, 
-            "dataset_revision": task.description.get("revision", None),
-            "mteb_dataset_name": task.description['name'],
-        }
-        for split in task_eval_splits:
-            tick = time()
-            results = task.evaluate(model, split, **kwargs)
-            tock = time()
-            logger.info(f"Evaluation for {task.description['name']} on {split} took {tock - tick:.2f} seconds")
-            results["evaluation_time"] = round(tock - tick, 2)
-            task_results[split] = results
-            logger.info(f"Scores: {results}")
+            # run evaluation
+            task_results = {
+                "mteb_version": __version__, 
+                "dataset_revision": task.description.get("revision", None),
+                "mteb_dataset_name": task.description['name'],
+            }
+            for split in task_eval_splits:
+                tick = time()
+                results = task.evaluate(model, split, target_devices=[0,1,2,4], **kwargs)
+                tock = time()
+                logger.info(f"Evaluation for {task.description['name']} on {split} took {tock - tick:.2f} seconds")
+                results["evaluation_time"] = round(tock - tick, 2)
+                task_results[split] = results
+                logger.info(f"Scores: {results}")
 
-        # save results
-        if output_folder is not None:
-            with open(save_path, "w") as f_out:
+            # save results
+            with open(config['save_path'], "w") as f_out:
                 json.dump(task_results, f_out, indent=2, sort_keys=True)
 
-        evaluation_results[task.description['name']] = task_results
+            evaluation_results[task.description['name']] = task_results
 
-    except Exception as e:
-        logger.error(f"Error while evaluating {task.description['name']}: {e}")
+        except Exception as e:
+            logger.error(f"Error while evaluating {task.description['name']}: {e}")
 
+        # empty memory
+        del evaluation.tasks[0]
 
-    # empty memory
-    del evaluation.tasks[0]
+    print(evaluation_results)
 
-print(evaluation_results)
+if __name__ == "__main__":
+    main()

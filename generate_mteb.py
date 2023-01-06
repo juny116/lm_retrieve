@@ -6,11 +6,15 @@ import random
 from tqdm import tqdm
 
 random.seed(42)
-max_cnt = 1000000000
+max_cnt = 3
 
-cuda = torch.device('cuda:6')
+cuda = torch.device('cuda:1')
 model_name = "google/flan-t5-xl"
-template = f"Generate a synthetic document that answers the following Question. Question: [QUERY]. Output: "
+# template = "Generate a document that answers the following question. "
+# template = "Generate a wikipedia document that answers the following question. "
+# template = "Generate a document that answers the following Question. Question: [QUERY]. Output: "
+template = f"Generate a wikipedia document that answers the following Question. Question: [QUERY]. Output: "
+# template = f"Generate a synthetic wikipedia document that answers the following Question. Question: [QUERY]. Output:"
 # template = f"Generate a synthetic document that offers evidence for the following Claim. Claim: [QUERY]. Output: "
 # "allenai/tk-instruct-11b-def-pos"
 # "allenai/tk-instruct-3b-def"
@@ -19,7 +23,7 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 model = model.to(cuda)
 
-dataset = QuoraRetrieval()
+dataset = NQ()
 # dataset = SciFact()
 dataset.load_data(eval_splits=['test'])
 rel = dataset.relevant_docs['test']
@@ -51,5 +55,5 @@ for q_id, c in tqdm(rel.items()):
     if cnt >= max_cnt:
         break
 
-with open('quoraretrieval.pkl', 'wb') as f:
+with open('nq_4.pkl', 'wb') as f:
     pickle.dump(results, f)

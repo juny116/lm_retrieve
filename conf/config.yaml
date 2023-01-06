@@ -1,0 +1,18 @@
+seed: 42
+
+generation_path: generation
+output_path: results
+template: 
+task: NQ
+method: og
+overwrite_results: False
+
+syn_doc: ./${generation_path}/${task}/${generator.name}/${templates.template_name}.pkl
+save_path: ./${output_path}/${task}/${generator.name}/${retriever.name}/${templates.template_name}_${method}.json
+
+defaults:
+  - retriever: contriever
+  - generator: flan3b
+  - templates: template4
+  # - ds_configs: single
+  - _self_
