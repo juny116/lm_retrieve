@@ -7,7 +7,7 @@ task: NQ
 method: og
 overwrite_results: False
 device: cuda:1
-max_gen: 3
+max_gen: 1000000000000
 
 syn_doc_path: ./${generation_path}/${task}/${generator.name}
 syn_doc_file: ./${syn_doc_path}/${templates.template_name}.pkl

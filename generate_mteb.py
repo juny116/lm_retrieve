@@ -28,7 +28,7 @@ def main(config: DictConfig) -> None:
     corpus = dataset.corpus['test']
 
     results = []
-    for i, (q_id, c) in tqdm(enumerate(rel.items())):
+    for i, (q_id, c) in enumerate(tqdm(rel.items())):
         if i > max_gen:
             break
 
@@ -39,12 +39,12 @@ def main(config: DictConfig) -> None:
         input_ids = input_ids.to(device)
 
         output = model.generate(input_ids,
-            do_sample=True,                             
-            max_length=500, 
-            top_k=50, 
-            top_p=0.95, 
-            min_length=150,
-            num_return_sequences=3
+            do_sample=config['generator']['do_sample'],                             
+            max_length=config['generator']['max_length'], 
+            top_k=config['generator']['top_k'], 
+            top_p=config['generator']['top_p'], 
+            min_length=config['generator']['min_length'],
+            num_return_sequences=config['generator']['num_return_sequences']
         )
 
         result = {'q_id': q_id, 'c_id': c_id, 'query': queries[q_id], 'gt': corpus[c_id]['text'], 'output': [tokenizer.decode(output[j], skip_special_tokens=True) for j in range(3)]}
