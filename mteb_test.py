@@ -32,7 +32,7 @@ def main(config: DictConfig) -> None:
         task.save_suffix = 'ours'
         logger.info(f"\n\n********************** Evaluating {task.description['name']} **********************")
 
-        if os.path.exists(config['save_path']) and config['overwrite_results'] is False:
+        if os.path.exists(config['save_file']) and config['overwrite_results'] is False:
             logger.warn(f"WARNING: {task.description['name']} results already exists. Skipping.")
             del evaluation.tasks[0]
             continue
