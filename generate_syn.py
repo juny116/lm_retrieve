@@ -8,6 +8,9 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from mteb import MTEB
 from pathlib import Path
+from beir import util, LoggingHandler
+from beir.datasets.data_loader import GenericDataLoader
+
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
 def main(config: DictConfig) -> None:
@@ -20,15 +23,21 @@ def main(config: DictConfig) -> None:
     model = AutoModelForSeq2SeqLM.from_pretrained(config['generator']['model_name_or_path'])
     model = model.to(device)
 
-    dataset = MTEB(tasks=[config['task']]).tasks[0]
+    # dataset = MTEB(tasks=[config['task']]).tasks[0]
+    # dataset.load_data(eval_splits=['test'])
+    # rel = dataset.relevant_docs['test']
+    # queries = dataset.queries['test']
+    # corpus = dataset.corpus['test']
 
-    dataset.load_data(eval_splits=['test'])
-    rel = dataset.relevant_docs['test']
-    queries = dataset.queries['test']
-    corpus = dataset.corpus['test']
+    dataset = config['task']
+    url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(dataset)
+    out_dir = '/datasets/datasets/beir'
+    data_path = util.download_and_unzip(url, out_dir)
+
+    corpus, queries, qrels = GenericDataLoader(data_path).load(split="test")
 
     results = []
-    for i, (q_id, c) in enumerate(tqdm(rel.items())):
+    for i, (q_id, c) in enumerate(tqdm(qrels.items())):
         if i > max_gen:
             break
 

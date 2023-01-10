@@ -6,3 +6,4 @@ mteb
 sentence_transformers
 tqdm
 hydra-core
+evaluate

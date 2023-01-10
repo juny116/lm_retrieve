@@ -3,6 +3,7 @@ run.sh
 generation
 results
 legacy
+corpus_embeddings
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
