@@ -1,7 +1,7 @@
 seed: 42
 
 generation_path: generation
-corpus_path: corpus_embeddings
+corpus_path: /data/juny116/retrieve/corpus_embeddings
 output_path: results
 template: 
 task: NQ

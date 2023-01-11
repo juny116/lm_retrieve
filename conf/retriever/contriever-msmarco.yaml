@@ -1,2 +1,3 @@
 name: contriever-msmarco
 model_name_or_path: facebook/contriever-msmarco
+type: sentence_transformers

@@ -36,6 +36,15 @@ def main(config: DictConfig) -> None:
 
     corpus, queries, qrels = GenericDataLoader(data_path).load(split="test")
 
+    total_len = 0
+    total_cnt = 0
+    for k,v in corpus.items():
+        total_len += len(tokenizer.encode(v['text']))
+        total_cnt += 1
+        if total_cnt == 100:
+            break
+    ave_len = int(total_len / total_cnt)
+    
     results = []
     for i, (q_id, c) in enumerate(tqdm(qrels.items())):
         if i > max_gen:
@@ -49,10 +58,10 @@ def main(config: DictConfig) -> None:
 
         output = model.generate(input_ids,
             do_sample=config['generator']['do_sample'],                             
-            max_length=config['generator']['max_length'], 
+            max_new_tokens=ave_len+50, 
             top_k=config['generator']['top_k'], 
             top_p=config['generator']['top_p'], 
-            min_length=config['generator']['min_length'],
+            min_length=ave_len-20,
             num_return_sequences=config['generator']['num_return_sequences']
         )
 

@@ -37,8 +37,9 @@ def main(config: DictConfig) -> None:
     # corpus, queries, qrels = HFDataLoader("BeIR/trec-covid").load(split="test")
 
     syn_doc = config.get('syn_doc_file')
-    with open(syn_doc, 'rb') as f:
-        query_dict = pickle.load(f)
+    if os.path.exists(syn_doc):
+        with open(syn_doc, 'rb') as f:
+            query_dict = pickle.load(f)
 
     new_queries = {}
 
@@ -62,28 +63,32 @@ def main(config: DictConfig) -> None:
     # model = BM25(index_name=index_name, hostname=hostname, initialize=initialize, number_of_shards=number_of_shards)
 
     # (2) For datasets with big corpus ==> keep default configuration
-    model = DRES(models.SentenceBERT(config['retriever']['model_name_or_path']), batch_size=32, corpus_chunk_size=5000)
-    # elif args.model_type == 'BM25':
-    #     model = BM25(index_name=dataset, hostname='localhost', initialize=True)
+    if config['retriever']['type'] == 'sentence_transformers':
+        model = DRES(models.SentenceBERT(config['retriever']['model_name_or_path']), batch_size=16, corpus_chunk_size=50000)
+    elif config['retriever']['type'] == 'bm25':
+        model = BM25(index_name=dataset, hostname='localhost', initialize=False)
 
         
     retriever = EvaluateRetrieval(model, score_function="dot") # or "cos_sim" for cosine similarity
 
-    if os.path.exists(config['corpus_embedding_file']):
-        with open(config['corpus_embedding_file'], "rb") as f_in:
-            pre_build_corpus_embeddings = pickle.load(f_in)
-        # logger.warn(f"WARNING: {task.description['name']} results already exists. Skipping.")
-        results, _ = retriever.retrieve(corpus, queries, corpus_embeddings=pre_build_corpus_embeddings)
-    else:
-        #### Retrieve dense results (format of results is identical to qrels)
-        results, corpus_embeddings = retriever.retrieve(corpus, queries)
-        corpus_embeddings = torch.cat(corpus_embeddings, dim=0)
+    if config['retriever']['type'] == 'sentence_transformers':
+        if os.path.exists(config['corpus_embedding_file']):
+            with open(config['corpus_embedding_file'], "rb") as f_in:
+                pre_build_corpus_embeddings = pickle.load(f_in)
+            # logger.warn(f"WARNING: {task.description['name']} results already exists. Skipping.")
+            results, _ = retriever.retrieve(corpus, queries, corpus_embeddings=pre_build_corpus_embeddings)
+        else:
+            #### Retrieve dense results (format of results is identical to qrels)
+            results, corpus_embeddings = retriever.retrieve(corpus, queries)
+            corpus_embeddings = torch.cat(corpus_embeddings, dim=0)
 
-        # save results
-        p = Path(config['corpus_embedding_path'])
-        p.mkdir(parents=True, exist_ok=True)
-        with open(config['corpus_embedding_file'], "wb") as f_out:
-            pickle.dump(corpus_embeddings, f_out)
+            # save results
+            p = Path(config['corpus_embedding_path'])
+            p.mkdir(parents=True, exist_ok=True)
+            with open(config['corpus_embedding_file'], "wb") as f_out:
+                pickle.dump(corpus_embeddings, f_out)
+    else:
+        results = retriever.retrieve(corpus, queries)
 
     #### Evaluate your retrieval using NDCG@k, MAP@K ...
     logging.info("Retriever evaluation for k in: {}".format(retriever.k_values))

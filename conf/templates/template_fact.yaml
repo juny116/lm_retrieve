@@ -1,0 +1,2 @@
+template_name: "t_fact"
+template: "Generate a Wikipedia paragraph to verify this Claim. Claim: [QUERY]. Output: "
