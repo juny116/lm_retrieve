@@ -64,9 +64,12 @@ def main(config: DictConfig) -> None:
             min_length=ave_len-20,
             num_return_sequences=config['generator']['num_return_sequences']
         )
-
-        result = {'q_id': q_id, 'c_id': c_id, 'query': queries[q_id], 'gt': corpus[c_id]['text'], 'output': [tokenizer.decode(output[j], skip_special_tokens=True) for j in range(3)]}
-        results.append(result)
+        try:
+            result = {'q_id': q_id, 'c_id': c_id, 'query': queries[q_id], 'gt': corpus[c_id]['text'], 'output': [tokenizer.decode(output[j], skip_special_tokens=True) for j in range(3)]}
+            results.append(result)
+        except Exception as e:
+            print(f'Qid:{q_id} ERROR', e)
+            
 
     result_dict = {result['q_id']: {'c_id': result['c_id'], 'query': result['query'], 'gt': result['gt'], 'output': result['output']} for result in results}
 

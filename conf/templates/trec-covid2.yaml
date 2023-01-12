@@ -1,0 +1,2 @@
+template_name: "trec-covid2"
+template: "Generate Scientific paper paragraph to answer this Question. Question: [QUERY]. Output: "

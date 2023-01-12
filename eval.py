@@ -44,13 +44,14 @@ def main(config: DictConfig) -> None:
     new_queries = {}
 
     if config['method'] == 'syn':
-        print('syn')
         for key, value in qrels.items():
             new_queries[key] = query_dict[key]['output'][0]
     elif config['method'] == 'syn_q':
-        print('syn_q')
         for key, value in qrels.items():
-            new_queries[key] = query_dict[key]['output'][0] + value
+            new_queries[key] = query_dict[key]['output'][0] + queries[key]
+    elif config['method'] == 'q_syn':
+        for key, value in qrels.items():
+            new_queries[key] = queries[key] + query_dict[key]['output'][0]
     else:
         new_queries = queries
 
@@ -66,7 +67,7 @@ def main(config: DictConfig) -> None:
     if config['retriever']['type'] == 'sentence_transformers':
         model = DRES(models.SentenceBERT(config['retriever']['model_name_or_path']), batch_size=16, corpus_chunk_size=50000)
     elif config['retriever']['type'] == 'bm25':
-        model = BM25(index_name=dataset, hostname='localhost', initialize=False)
+        model = BM25(index_name=dataset, hostname='localhost', initialize=config['retriever']['initialize'])
 
         
     retriever = EvaluateRetrieval(model, score_function="dot") # or "cos_sim" for cosine similarity

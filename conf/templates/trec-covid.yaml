@@ -1,0 +1,2 @@
+template_name: "trec-covid"
+template: "Generate a biomedical article that answers the following Question. Question: [QUERY]. Output: "

@@ -1,0 +1,2 @@
+template_name: arguana
+template: "Generate an argument that counter argues the following paragraph. Paragraph: [QUERY]. Output: "

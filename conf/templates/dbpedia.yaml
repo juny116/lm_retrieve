@@ -1,0 +1,2 @@
+template_name: dbpedia
+template: "Generate a Wikipedia introduction paragraph of the following Entity. Entity: [QUERY]. Output: "
