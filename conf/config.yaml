@@ -4,7 +4,7 @@ generation_path: generation
 corpus_path: /data/juny116/retrieve/corpus_embeddings
 output_path: results
 template: 
-task: NQ
+task: nq
 method: og
 overwrite_results: False
 device: cuda:1
@@ -15,12 +15,12 @@ syn_doc_file: ${syn_doc_path}/${templates.template_name}.pkl
 
 save_path: ./${output_path}/${task}/${generator.name}/${retriever.name}
 save_file: ${save_path}/${templates.template_name}_${method}.jsonl
-corpus_embedding_path: ./${corpus_path}/${task}
+corpus_embedding_path: ${corpus_path}/${task}
 corpus_embedding_file: ${corpus_embedding_path}/${retriever.name}.pkl
 
 defaults:
   - retriever: contriever
   - generator: flan3b
-  - templates: template4
+  - templates: nq
   # - ds_configs: single
   - _self_

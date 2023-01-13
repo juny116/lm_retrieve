@@ -1,11 +1,10 @@
-from mteb.tasks import SciFact, NQ, MSMARCOv2, MSMARCO, DBPedia, FEVER, QuoraRetrieval
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 import pickle
 import random
 from tqdm import tqdm
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from mteb import MTEB
 from pathlib import Path
 from beir import util, LoggingHandler
@@ -23,6 +22,7 @@ def main(config: DictConfig) -> None:
     model = AutoModelForSeq2SeqLM.from_pretrained(config['generator']['model_name_or_path'])
     model = model.to(device)
 
+    # MTEB version
     # dataset = MTEB(tasks=[config['task']]).tasks[0]
     # dataset.load_data(eval_splits=['test'])
     # rel = dataset.relevant_docs['test']
@@ -65,7 +65,7 @@ def main(config: DictConfig) -> None:
             num_return_sequences=config['generator']['num_return_sequences']
         )
         try:
-            result = {'q_id': q_id, 'c_id': c_id, 'query': queries[q_id], 'gt': corpus[c_id]['text'], 'output': [tokenizer.decode(output[j], skip_special_tokens=True) for j in range(3)]}
+            result = {'q_id': q_id, 'c_id': c_id, 'query': queries[q_id], 'gt': corpus[c_id]['text'], 'output': [tokenizer.decode(output[j], skip_special_tokens=True) for j in range(int(config['generator']['num_return_sequences']))]}
             results.append(result)
         except Exception as e:
             print(f'Qid:{q_id} ERROR', e)

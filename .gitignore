@@ -4,6 +4,7 @@ generation
 results
 legacy
 corpus_embeddings
+scripts
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
