@@ -3,10 +3,8 @@ import logging
 
 from beir import util, LoggingHandler
 from beir.datasets.data_loader import GenericDataLoader
-from beir.datasets.data_loader_hf import HFDataLoader
 import hydra
 from omegaconf import DictConfig
-from pathlib import Path
 import pickle
 
 
@@ -34,13 +32,14 @@ def main(config: DictConfig) -> None:
             query_dict = pickle.load(f)
 
     for i, (key, value) in enumerate(qrels.items()):
+        if i == config['max_print']:
+            break
+
         c_id = next(iter(value))
         print("---------------------")
         print('Query: ' + queries[key] + '\n')
         print('GT: '+ corpus[c_id]['text'] + '\n')
         print('Gen: '+ query_dict[key]['output'][0] + '\n')
-        if i == 3:
-            break
 
 if __name__ == "__main__":
     main()

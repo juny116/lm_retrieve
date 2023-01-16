@@ -1,18 +1,26 @@
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-import torch
-import pickle
+import logging
 import random
-from tqdm import tqdm
+import pickle
+from pathlib import Path
+
+import torch
 import hydra
 from omegaconf import DictConfig
-from mteb import MTEB
-from pathlib import Path
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from tqdm import tqdm
+
 from beir import util, LoggingHandler
 from beir.datasets.data_loader import GenericDataLoader
+# from mteb import MTEB
 
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
 def main(config: DictConfig) -> None:
+    #### Just some code to print debug information to stdout
+    logging.basicConfig(format='%(asctime)s - %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S',
+                        level=logging.INFO,
+                        handlers=[LoggingHandler()])
     random.seed(config['seed'])
     max_gen = config['max_gen']
     template = config['templates']['template']

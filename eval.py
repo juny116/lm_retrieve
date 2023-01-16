@@ -1,3 +1,12 @@
+import os, random
+import logging
+import json, pickle
+from pathlib import Path
+
+import torch
+import hydra
+from omegaconf import DictConfig
+
 from beir import util, LoggingHandler
 from beir.datasets.data_loader import GenericDataLoader
 from beir.datasets.data_loader_hf import HFDataLoader
@@ -6,15 +15,6 @@ from beir.retrieval.search.lexical import BM25Search as BM25
 from beir.retrieval.search.dense import DenseRetrievalExactSearch as DRES
 from beir.retrieval.search.dense import DenseRetrievalParallelExactSearch as DRPES
 from beir.retrieval import models
-import hydra
-from omegaconf import DictConfig, OmegaConf
-import torch
-from pathlib import Path
-import pickle
-
-import os, random
-import logging
-import json
 
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
@@ -100,6 +100,7 @@ def main(config: DictConfig) -> None:
         for metric in [ndcg, _map, recall, precision]:
             f_out.write(json.dumps(metric, ensure_ascii=False) + "\n")
 
+    # TODO: sample retrieval results
     #### Retrieval Example ####
     # query_id, scores_dict = random.choice(list(results.items()))
     # logging.info("Query : %s\n" % queries[query_id])
