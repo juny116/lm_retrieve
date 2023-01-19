@@ -1,5 +1,5 @@
 from seal import FMIndex, fm_index_generate, SEALSearcher
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, PhrasalConstraint
 
 corpus = [
     "Doc 1 @@ Is this science or magic",
@@ -20,13 +20,36 @@ def preprocess(doc):
 
 corpus_tokenized = [preprocess(doc) for doc in corpus]
 
+# encoder_input_str = "The unicorns greeted the scientists, explaining that they had been expecting the encounter for a while."
+
+# constraints = [
+#     PhrasalConstraint(
+#         tokenizer("surprised", add_special_tokens=False).input_ids
+#     )
+# ]
+
+# input_ids = tokenizer(encoder_input_str, return_tensors="pt").input_ids
+
+
+# outputs = model.generate(
+#     input_ids,
+#     constraints=constraints,
+#     num_beams=10,
+#     num_return_sequences=1,
+#     no_repeat_ngram_size=1,
+#     remove_invalid_values=True,
+#     max_new_tokens=100,
+# )
+
+
+# print("Output:\n" + 100 * '-')
+# print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+
 index = FMIndex()
 index.initialize(corpus_tokenized, in_memory=True)
 index.labels = labels
 
 index.save('sample_corpus.fm_index')
-# writes res/sample/sample_corpus.fm_index.fmi
-# writes res/sample/sample_corpus.fm_index.oth
 
 index = FMIndex.load('sample_corpus.fm_index')
 
@@ -46,18 +69,17 @@ out = fm_index_generate(
 )
 
 print(tokenizer.decode(out[0], skip_special_tokens=True).strip())
-# unicorns welcomed the researchers and explained that they had been waiting for them for a very long time.
 
 
-searcher = SEALSearcher.load('sample_corpus.fm_index', 'facebook/bart-large')
-searcher.include_keys = True
+# searcher = SEALSearcher.load('sample_corpus.fm_index', None)
+# searcher.include_keys = True
 
-query = "The unicorns greeted the scientists, explaining that they had been expecting the encounter for a while."
+# query = "The unicorns greeted the scientists, explaining that they had been expecting the encounter for a while."
 
-for i, doc in enumerate(searcher.search(query, k=3)):
-    print(i, doc.score, doc.docid, *doc.text(), sep='\t')
-    print("Matched:")
-    matched = sorted(doc.keys, reverse=True, key=lambda x:x[2])
-    matched = matched[:5]
-    for ngram, freq, score in matched:
-        print("{:.1f}".format(score).zfill(5), freq, repr(ngram), sep='\t')
+# for i, doc in enumerate(searcher.search(query, k=3)):
+#     print(i, doc.score, doc.docid, *doc.text(), sep='\t')
+#     print("Matched:")
+#     matched = sorted(doc.keys, reverse=True, key=lambda x:x[2])
+#     matched = matched[:5]
+#     for ngram, freq, score in matched:
+#         print("{:.1f}".format(score).zfill(5), freq, repr(ngram), sep='\t')
