@@ -1,6 +1,7 @@
 from seal import FMIndex, fm_index_generate, SEALSearcher
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, PhrasalConstraint
 
+
 corpus = [
     "Doc 1 @@ Is this science or magic",
     "Doc 2 @@ there are cats and dogs",
@@ -34,41 +35,14 @@ The unicorns greeted the scientists, explaining that they had been expecting the
 a while.'
 ”""".split()).strip()
 
-#### FM index const gen ####
-out = fm_index_generate(
-    model, index,
-    **tokenizer([' ' + query], return_tensors='pt'),
-    keep_history=False,
-    transformers_output=True,
-    always_allow_eos=True,
-    max_length=100,
-)
 
-print(tokenizer.decode(out[0], skip_special_tokens=True).strip())
+searcher = SEALSearcher.load('sample_corpus.fm_index', None)
+searcher.include_keys = True
 
-
-#### Huggingface const gen ####
-encoder_input_str = "The unicorns greeted the scientists, explaining that they had been expecting the encounter for a while."
-
-constraints = [
-    PhrasalConstraint(
-        tokenizer("surprised", add_special_tokens=False).input_ids
-    )
-]
-
-input_ids = tokenizer(encoder_input_str, return_tensors="pt").input_ids
-
-
-outputs = model.generate(
-    input_ids,
-    constraints=constraints,
-    num_beams=10,
-    num_return_sequences=1,
-    no_repeat_ngram_size=1,
-    remove_invalid_values=True,
-    max_new_tokens=100,
-)
-
-
-print("Output:\n" + 100 * '-')
-print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+for i, doc in enumerate(searcher.search(query, k=3)):
+    print(i, doc.score, doc.docid, *doc.text(), sep='\t')
+    print("Matched:")
+    matched = sorted(doc.keys, reverse=True, key=lambda x:x[2])
+    matched = matched[:5]
+    for ngram, freq, score in matched:
+        print("{:.1f}".format(score).zfill(5), freq, repr(ngram), sep='\t')
