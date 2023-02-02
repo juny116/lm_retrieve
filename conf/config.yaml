@@ -9,6 +9,7 @@ method: og
 overwrite_results: False
 device: cuda:1
 max_gen: 1000000000000
+max_print: 5
 
 syn_doc_path: ./${generation_path}/${task}/${generator.name}
 syn_doc_file: ${syn_doc_path}/${templates.template_name}.pkl

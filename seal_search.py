@@ -36,7 +36,7 @@ a while.'
 ”""".split()).strip()
 
 
-searcher = SEALSearcher.load('sample_corpus.fm_index', None)
+searcher = SEALSearcher.load('legacy/sample_corpus.fm_index', None)
 searcher.include_keys = True
 
 for i, doc in enumerate(searcher.search(query, k=3)):
