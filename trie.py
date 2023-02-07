@@ -1,4 +1,5 @@
 from typing import Dict, List
+from tqdm import tqdm
 
 try:
     import marisa_trie
@@ -11,7 +12,7 @@ class Trie(object):
         self.trie_dict = {}
         self.len = 0
         if sequences:
-            for sequence in sequences:
+            for sequence in tqdm(sequences):
                 Trie._add_to_trie(sequence, self.trie_dict)
                 self.len += 1
 
