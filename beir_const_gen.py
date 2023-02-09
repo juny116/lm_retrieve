@@ -37,6 +37,7 @@ def main(config: DictConfig) -> None:
     out_dir = '/datasets/datasets/beir'
     data_path = util.download_and_unzip(url, out_dir)
     device = torch.device(config['device'])
+    max_gen = config['max_gen']
 
     corpus, queries, qrels = GenericDataLoader(data_path).load(split="test")
 
@@ -58,7 +59,10 @@ def main(config: DictConfig) -> None:
     # print(trie.get([]))
     template = config['templates']['template']
     print(template)
+    gen_results = set()
     for i, (q_id, c) in enumerate(tqdm(qrels.items())):
+        if i > max_gen:
+            break
         start = time()
         input_str = template.replace('[QUERY]', queries[q_id])
         input_ids = tokenizer(input_str, return_tensors="pt").input_ids.to(device)
@@ -91,12 +95,13 @@ def main(config: DictConfig) -> None:
             if force_words_ids[0] == [-1]:
                 break
         print(tokenizer.decode(input_ids[0], skip_special_tokens=True))
-        force_words_ids = [trie.get(input_ids[0][input_len:].tolist() + [-1])]
+        force_words_ids = trie.get(input_ids[0][input_len:].tolist() + [-1])
         print(force_words_ids)
         print(c)
+        gen_results.add(force_words_ids[0])
         print(time() - start)
-        if i > 30:
-            break
 
+    print(gen_results)
+    print(len(gen_results))
 if __name__ == "__main__":
     main()
