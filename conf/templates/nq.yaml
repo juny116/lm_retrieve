@@ -1,2 +1,2 @@
-template_name: "t4"
-template: "Generate a wikipedia document that answers the following Question. Question: [QUERY]. Output: "
+template_name: "nq"
+template: "Please write a passage to answer the question\nQuestion: [QUERY]\nPassage: "

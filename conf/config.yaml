@@ -3,7 +3,7 @@ seed: 42
 generation_path: generation
 corpus_path: /data/juny116/retrieve/corpus_embeddings
 output_path: results
-template: 
+
 task: nq
 method: og
 overwrite_results: False
