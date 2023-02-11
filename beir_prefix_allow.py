@@ -19,6 +19,7 @@ from trie import Trie
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from tqdm import tqdm
 from time import time
+import evaluate
 
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
@@ -38,6 +39,8 @@ def main(config: DictConfig) -> None:
     data_path = util.download_and_unzip(url, out_dir)
     device = torch.device(config['device'])
     max_gen = config['max_gen']
+
+    metric = evaluate.load('ndcg.py')
 
     corpus, queries, qrels = GenericDataLoader(data_path).load(split="test")
     
@@ -85,8 +88,8 @@ def main(config: DictConfig) -> None:
             input_ids,
             max_new_tokens=384,
             prefix_allowed_tokens_fn=prefix_allowed_fn,
-            num_beams=6,
-            num_return_sequences=6,
+            num_beams=10,
+            num_return_sequences=10,
             remove_invalid_values=True,
             use_cache=True,
         )
