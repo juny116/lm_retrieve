@@ -7,7 +7,7 @@ output_path: results
 task: nq
 method: og
 overwrite_results: False
-device: cuda:1
+device: cuda:4
 max_gen: 1000000000000
 max_print: 5
 
@@ -23,5 +23,5 @@ defaults:
   - retriever: contriever
   - generator: flan3b
   - templates: nq
-  # - ds_configs: single
+  - ds_configs: zero3
   - _self_

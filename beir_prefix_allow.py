@@ -10,11 +10,6 @@ from omegaconf import DictConfig
 from beir import util, LoggingHandler
 from beir.datasets.data_loader import GenericDataLoader
 from beir.datasets.data_loader_hf import HFDataLoader
-from beir.retrieval.evaluation import EvaluateRetrieval
-from beir.retrieval.search.lexical import BM25Search as BM25
-from beir.retrieval.search.dense import DenseRetrievalExactSearch as DRES
-from beir.retrieval.search.dense import DenseRetrievalParallelExactSearch as DRPES
-from beir.retrieval import models
 from trie import Trie
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from tqdm import tqdm
@@ -51,9 +46,16 @@ def main(config: DictConfig) -> None:
 
     sents = []
     for k, v in tqdm(corpus.items()):
-        sents.append([0] + tokenizer.encode(v['text'], truncation=True, max_length=384) + [-1, k])
-
+        sents.append([0] + tokenizer.encode(v['text'], truncation=True, max_length=128) + [-1, k])
     trie = Trie(sents)
+
+    with open(f'results/{dataset}_128_trie.pkl', 'wb') as f:
+        pickle.dump(trie.trie_dict, f)
+
+    # with open(f'results/{dataset}_trie.pkl', 'rb') as f:
+    #     trie_dict = pickle.load(f)
+    # trie = Trie.load_from_dict(trie_dict)
+
     def prefix_allowed_fn(batch_id, sent):
         # print(batch_id, sent)
         sent = sent.tolist()
@@ -63,12 +65,6 @@ def main(config: DictConfig) -> None:
         # print(trie_out)
         return trie_out
 
-    with open(f'results/{dataset}_trie.pkl', 'wb') as f:
-        pickle.dump(trie.trie_dict, f)
-
-    # with open(f'results/{dataset}_trie.pkl', 'rb') as f:
-    #     trie_dict = pickle.load(f)
-    # trie = Trie.load_from_dict(trie_dict)
     # print(trie.get([]))
     template = config['templates']['template']
     print(template)
@@ -86,7 +82,7 @@ def main(config: DictConfig) -> None:
 
         outputs = model.generate(
             input_ids,
-            max_new_tokens=384,
+            max_new_tokens=128,
             prefix_allowed_tokens_fn=prefix_allowed_fn,
             num_beams=10,
             num_return_sequences=10,
