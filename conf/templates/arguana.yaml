@@ -1,2 +1,2 @@
 template_name: arguana
-template: "Generate an argument that counter argues the following paragraph. Paragraph: [QUERY]. Output: "
+template: "Please write a counter argument for the passage\nPassage: [QUERY]\nCounter Argument: "

@@ -10,7 +10,9 @@ from omegaconf import DictConfig
 import torch
 import deepspeed
 import numpy as np
-from datasets import load_dataset, load_metric
+from datasets import load_dataset, load_metric, Dataset
+from beir import util, LoggingHandler
+from beir.datasets.data_loader import GenericDataLoader
 from beir.datasets.data_loader_hf import HFDataLoader
 from tqdm.auto import tqdm
 from transformers.deepspeed import HfDeepSpeedConfig
@@ -22,11 +24,12 @@ from transformers import (
     AutoModelForSeq2SeqLM,
     set_seed,
 )
+from trie import Trie
+import pickle
+
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
 def main(config: DictConfig) -> None:
-    start_time = time.time()
-
     # To avoid warnings about parallelism in tokenizers
     os.environ["TOKENIZERS_PARALLELISM"] = "false"  
 
@@ -41,12 +44,14 @@ def main(config: DictConfig) -> None:
 
     # Process auto config
     # auto values are from huggingface
-    if ds_config['zero_optimization']['reduce_bucket_size'] == 'auto':
-        ds_config['zero_optimization']['reduce_bucket_size'] = config['generator']['hidden_size'] * config['generator']['hidden_size']
-    if ds_config['zero_optimization']['stage3_prefetch_bucket_size'] == 'auto':
-        ds_config['zero_optimization']['stage3_prefetch_bucket_size'] = config['generator']['hidden_size'] * config['generator']['hidden_size'] * 0.9
-    if ds_config['zero_optimization']['stage3_param_persistence_threshold'] == 'auto':
-        ds_config['zero_optimization']['stage3_param_persistence_threshold'] = config['generator']['hidden_size'] * 10
+    if ds_config.get('zero_optimization'):
+        if ds_config.get('zero_optimization').get('stage') == 3:
+            if ds_config['zero_optimization']['reduce_bucket_size'] == 'auto':
+                ds_config['zero_optimization']['reduce_bucket_size'] = config['generator']['hidden_size'] * config['generator']['hidden_size']
+            if ds_config['zero_optimization']['stage3_prefetch_bucket_size'] == 'auto':
+                ds_config['zero_optimization']['stage3_prefetch_bucket_size'] = config['generator']['hidden_size'] * config['generator']['hidden_size'] * 0.9
+            if ds_config['zero_optimization']['stage3_param_persistence_threshold'] == 'auto':
+                ds_config['zero_optimization']['stage3_param_persistence_threshold'] = config['generator']['hidden_size'] * 10
 
     # For huggingface deepspeed / Keep this alive!
     dschf = HfDeepSpeedConfig(ds_config)
@@ -72,21 +77,70 @@ def main(config: DictConfig) -> None:
         random.seed(config['seed'])
 
     dataset = config['task']
-    metric = evaluate.load('ndcg.py', process_id=local_rank, num_process=world_size)
+
     
     # In distributed training, the load_dataset function guarantee that only one local process can concurrently
     # download the dataset.
-    corpus, queries, qrels = HFDataLoader(f"BeIR/{dataset}").load(split="test")
+    # corpus, queries, qrels = HFDataLoader(f"BeIR/{dataset}").load(split="test")
 
+    if local_rank > 0:  
+        logger.info("Waiting for main process to download datasets")
+        torch.distributed.barrier()
+    dataset = config['task']
+    url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(dataset)
+    out_dir = '/datasets/datasets/beir'
+    data_path = util.download_and_unzip(url, out_dir)
+    if local_rank == 0:
+        torch.distributed.barrier()
 
+    ndcg = evaluate.load('ndcg.py', process_id=local_rank, num_process=world_size, experiment_id='ndcg')
+    recall = evaluate.load('recall.py', process_id=local_rank, num_process=world_size, experiment_id='recall')
+    corpus, queries, qrels = GenericDataLoader(data_path).load(split="test")
     logger.info(f"Dataset loaded with {len(corpus)} documents and {len(queries)} queries and {len(qrels)} qrels")
-    # See more about loading any type of standard or custom dataset at
-    # https://huggingface.co/docs/datasets/loading_datasets.html.
+
+    tokenizer = AutoTokenizer.from_pretrained(config['generator']["model_name_or_path"])
+
+    if local_rank == 0:
+        if config['create_trie']: 
+            logger.info("Waiting for main process to create trie")
+            sents = []
+            for k, v in tqdm(corpus.items()):
+                sents.append([0] + tokenizer.encode(v['text'], truncation=True, max_length=config['max_length']) + [-1, k])
+            trie = Trie(sents)
+            with open(f'results/{dataset}_{config["max_length"]}_trie.pkl', 'wb') as f:
+                pickle.dump(trie.trie_dict, f)
+            logger.info("Finish creating trie")
+            torch.distributed.barrier()
+        else:
+            torch.distributed.barrier()
+            with open(f'results/{dataset}_{config["max_length"]}_trie.pkl', 'rb') as f:
+                trie_dict = pickle.load(f)
+                trie = Trie.load_from_dict(trie_dict)
+    if local_rank > 0:
+        torch.distributed.barrier()
+        with open(f'results/{dataset}_{config["max_length"]}_trie.pkl', 'rb') as f:
+            trie_dict = pickle.load(f)
+            trie = Trie.load_from_dict(trie_dict)
+
+    def prefix_allowed_fn(batch_id, sent):
+        # print(batch_id, sent)
+        sent = sent.tolist()
+        trie_out = trie.get(sent)
+        if trie_out == [-1]:
+            trie_out = []
+        return trie_out
+
+    new_qrels = {'query_id': [], 'corpus_id': [], 'relevance': []}
+    for k, v in qrels.items():
+        new_qrels['query_id'].append(k)
+        new_qrels['corpus_id'].append(list(v.keys()))
+        new_qrels['relevance'].append(list(v.values()))
+
+    hf_dataset = Dataset.from_dict(new_qrels)
 
     # Load model
     logger.info(f'Start loading model {config["generator"]["model_name_or_path"]}')
     model_loading_start = time.time()
-    tokenizer = AutoTokenizer.from_pretrained(config['generator']["model_name_or_path"])
     model = AutoModelForSeq2SeqLM.from_pretrained(config['generator']["model_name_or_path"])
 
     model_engine = deepspeed.initialize(model=model, config_params=ds_config)[0]
@@ -95,103 +149,60 @@ def main(config: DictConfig) -> None:
     model_loading_end = time.time()
     logger.info(f'Total time for loading model : {model_loading_end - model_loading_start} sec.')
 
-    # text_in = [queries[i]['text'] for i in range(local_rank * 20, 20 * (local_rank+1))]
-    text_in = [queries[i]['text'] for i in range(0 * 20, 20 * (0+1))]
-    print(len(text_in))
-    # if local_rank == 0:
-    #     text_in = ["Is this review positive or negative? Review: this is the best cast iron skillet you will ever buy", 
-    #                "Is this review positive or negative? Review: this is the worst restaurant ever"]
-    # elif local_rank == 1:
-    #     text_in = ["Is this review positive or negative? Review: this is the worst restaurant ever", "This is test"]
-    # elif local_rank == 2:
-    #     text_in = ["Is this review positive or negative?", "This is test 2"]
-    # elif local_rank == 3:
-    #     text_in = ["Is this review", "this is test 333"]
+    sampler = torch.utils.data.distributed.DistributedSampler(hf_dataset, shuffle=False)
+    dataloader = torch.utils.data.DataLoader(hf_dataset, sampler=sampler, batch_size=1)
 
-    # inputs = tokenizer.encode(text_in, return_tensors="pt").to(device=local_rank)
+    template = config['templates']['template']
+    progressbar = tqdm(range(len(dataloader)))
 
-    inputs = tokenizer(text_in, padding=True, return_tensors="pt").to(device=local_rank)
+    errors = []
+    for batch in dataloader:
+        input_str = template.replace('[QUERY]', queries[batch['query_id'][0]])
+        input_ids = tokenizer(input_str, truncation=True, max_length=510-config['max_length'], return_tensors="pt").input_ids.to(local_rank)
 
-    start_gen = time.time()
-    with torch.no_grad():
-        outputs = model_engine.module.generate(
-            inputs=inputs['input_ids'],
-            attention_mask=inputs['attention_mask'],
-            max_new_tokens=384,
-            num_beams=10,
-            num_return_sequences=10,
-            use_cache=True,
-            remove_invalid_values=True,
-            synced_gpus=True
-        )
-    end_gen = time.time()
-    logger.info(f'Generation time {end_gen - start_gen}')
-    text_out = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    print(f"rank{local_rank}:\n   in={text_in[0]}\n  out={text_out}")
+        with torch.no_grad():
+            outputs = model_engine.module.generate(
+                input_ids,
+                max_new_tokens=config['max_length'],
+                prefix_allowed_tokens_fn=prefix_allowed_fn,
+                num_beams=10,
+                num_return_sequences=10,
+                remove_invalid_values=True,
+            )
 
-    # # Preprocessing the datasets
-    # def preprocess_function(examples):
-    #     # Tokenize the texts
-    #     result = {}
-    #     texts = examples[config['datasets']['sentence1_key']] if config['datasets']['sentence2_key'] is None else examples[config['datasets']['sentence1_key']] + '\n' + examples[config['datasets']['sentence2_key']]
-        
-    #     result['inputs'] = texts
-    #     # result = tokenizer(*texts, padding=config['padding'], max_length=config['max_length'], truncation=True)
-    #     result["labels"] = examples["label"]
+        cid_list = []
+        for output in outputs:
+            out_list = output.tolist()
+            temp = [out_list[0]]
+            for out in out_list[1:]:
+                if out == 0:
+                    break
+                temp.append(out)
+            try:
+                cid_list.append(trie.get(temp + [-1])[0])
+            except:
+                errors.append(temp)
+            
 
-    #     return result
+        predictions = [1 for i in range(len(cid_list))]
+        references = []
+        for cid in cid_list:
+            if cid in batch['corpus_id'][0]:
+                references.append(1)
+            else:
+                references.append(0)
 
-    # # Ensures the main process performs the mapping
-    # if local_rank > 0:  
-    #     logger.info("Waiting for main process to perform the mapping")
-    #     torch.distributed.barrier()
-    # # processed_datasets = raw_datasets.map(
-    # #     preprocess_function,
-    # #     remove_columns=raw_datasets["train"].column_names,
-    # #     desc="Running tokenizer on dataset",
-    # # )
-    # if local_rank == 0:
-    #     torch.distributed.barrier()
+        ndcg.add(references=references, predictions=predictions)
+        recall.add(references=references, predictions=predictions)
+        progressbar.update(1)
 
-    # batch_size = ds_config['train_micro_batch_size_per_gpu']
+    print(errors)
+    ndcg_results = ndcg.compute(k=[1,5,10])
+    recall_results = recall.compute(k=[1,5,10])
+    if local_rank == 0:
+        logger.info(ndcg_results)
+        logger.info(recall_results)
 
-    # # Evaluate! 
-    # logger.info("***** Few-shot Evaluation *****")
-    # logger.info(f"  TASK                                = {config['datasets']['task']}")
-    # logger.info(f"  Num TRAIN examples                  = {len(train_dataset)}")
-    # logger.info(f"  Num TEST  examples                  = {len(test_dataset)}")
-    # logger.info(f"  Random Seed                         = {config['seed']}")
-    # logger.info(f"  Inference Model                     = {config['models']['model_name_or_path']}")
-
-    # train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, shuffle=True)
-    # train_dataloader = torch.utils.data.DataLoader(train_dataset, sampler=train_sampler, batch_size=batch_size)
-
-    # test_sampler = torch.utils.data.distributed.DistributedSampler(test_dataset, shuffle=False)
-    # test_dataloader = torch.utils.data.DataLoader(test_dataset, sampler=test_sampler, batch_size=batch_size)
-
-    # metric = load_metric('accuracy', num_process=world_size, process_id=local_rank)
-
-    # for epoch in range(config['epochs']):
-    #     model_engine.module.eval()
-    #     progressbar = tqdm(range(len(test_dataloader)))
-    #     for step, batch in enumerate(test_dataloader):
-    #         inputs = tokenizer(batch['inputs'], padding=config['padding'], max_length=config['max_length'], return_tensors='pt').to(device=local_rank)
-    #         inputs['labels'] = torch.Tensor(batch['labels']).to(device=local_rank)
-    #         with torch.no_grad():
-    #             loss, predictions = model_engine(**inputs)
-
-    #         metric.add_batch(predictions=predictions, references=batch['labels'])
-    #         progressbar.update(1)
-
-    #     result = metric.compute()
-    #     if local_rank == 0:
-    #         logger.info(f"Epoch {epoch}: Evaluation accuracy {result['accuracy'] * 100}")
-    #     #save checkpoint
-    #     model_engine.save_checkpoint(config['save_path'], epoch)
-   
-    # end_time = time.time()
-    # logger.info(f'Total runtime : {end_time - start_time} sec.')
-                
 if __name__ == "__main__":
     main()
     

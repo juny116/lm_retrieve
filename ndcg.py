@@ -1,4 +1,4 @@
-import evaluate as ev
+import evaluate
 from sklearn.metrics import ndcg_score
 import datasets
 
@@ -83,9 +83,9 @@ _CITATION = """
 }
 """
 
-class nDCG(ev.Metric):
+class nDCG(evaluate.Metric):
     def _info(self):
-        return ev.MetricInfo(
+        return evaluate.MetricInfo(
             description=_DESCRIPTION,
             citation=_CITATION,
             inputs_description=_KWARGS_DESCRIPTION,

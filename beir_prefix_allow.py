@@ -45,16 +45,16 @@ def main(config: DictConfig) -> None:
     model = model.to(device)
 
     sents = []
-    for k, v in tqdm(corpus.items()):
-        sents.append([0] + tokenizer.encode(v['text'], truncation=True, max_length=128) + [-1, k])
-    trie = Trie(sents)
+    # for k, v in tqdm(corpus.items()):
+    #     sents.append([0] + tokenizer.encode(v['text'], truncation=True, max_length=128) + [-1, k])
+    # trie = Trie(sents)
 
-    with open(f'results/{dataset}_128_trie.pkl', 'wb') as f:
-        pickle.dump(trie.trie_dict, f)
+    # with open(f'results/{dataset}_128_trie.pkl', 'wb') as f:
+    #     pickle.dump(trie.trie_dict, f)
 
-    # with open(f'results/{dataset}_trie.pkl', 'rb') as f:
-    #     trie_dict = pickle.load(f)
-    # trie = Trie.load_from_dict(trie_dict)
+    with open(f'results/{dataset}_128_trie.pkl', 'rb') as f:
+        trie_dict = pickle.load(f)
+    trie = Trie.load_from_dict(trie_dict)
 
     def prefix_allowed_fn(batch_id, sent):
         # print(batch_id, sent)
@@ -62,13 +62,12 @@ def main(config: DictConfig) -> None:
         trie_out = trie.get(sent)
         if trie_out == [-1]:
             trie_out = []
-        # print(trie_out)
         return trie_out
 
     # print(trie.get([]))
     template = config['templates']['template']
     print(template)
-    gen_results = set()
+
     total_num = 0
     correct_num = 0
     for i, (q_id, c) in enumerate(tqdm(qrels.items())):
@@ -77,15 +76,13 @@ def main(config: DictConfig) -> None:
         input_str = template.replace('[QUERY]', queries[q_id])
         input_ids = tokenizer(input_str, return_tensors="pt").input_ids.to(device)
         input_len = input_ids.size(1)
-        # print(input_str)
-        # print(input_len)
 
         outputs = model.generate(
             input_ids,
             max_new_tokens=128,
             prefix_allowed_tokens_fn=prefix_allowed_fn,
             num_beams=10,
-            num_return_sequences=10,
+            num_return_sequences=1,
             remove_invalid_values=True,
             use_cache=True,
         )
