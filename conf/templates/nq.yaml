@@ -1,2 +1,2 @@
 template_name: "nq"
-template: "Please write a passage to answer the question\nQuestion: [QUERY]\nPassage: "
+template: "Please write a Wikipedia passage to answer the Question.\nQuestion: [QUERY]\nPassage: "

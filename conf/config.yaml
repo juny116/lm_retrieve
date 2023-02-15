@@ -5,7 +5,7 @@ corpus_path: /data/juny116/retrieve/corpus_embeddings
 output_path: results
 
 task: nq
-method: og
+method: const_gen
 overwrite_results: False
 device: cuda:4
 max_gen: 1000000000000
@@ -22,7 +22,7 @@ corpus_embedding_path: ${corpus_path}/${task}
 corpus_embedding_file: ${corpus_embedding_path}/${retriever.name}.pkl
 
 defaults:
-  - retriever: contriever
+  - retriever: const_gen
   - generator: flan3b
   - templates: nq
   - ds_configs: zero3

@@ -1,2 +1,2 @@
 template_name: arguana
-template: "Please write a counter argument for the passage\nPassage: [QUERY]\nCounter Argument: "
+template: "Please write a counter argument for the Passage\nPassage: [QUERY]\nCounter Argument: "

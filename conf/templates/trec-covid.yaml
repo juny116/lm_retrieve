@@ -1,2 +1,2 @@
 template_name: "trec-covid"
-template: "Generate a biomedical article that answers the following Question. Question: [QUERY]. Output: "
+template: "Please write a scientific paper passage to answer the Question.\nQuestion: [QUERY]\nPassage: "

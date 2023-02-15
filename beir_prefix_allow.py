@@ -35,8 +35,6 @@ def main(config: DictConfig) -> None:
     device = torch.device(config['device'])
     max_gen = config['max_gen']
 
-    metric = evaluate.load('ndcg.py')
-
     corpus, queries, qrels = GenericDataLoader(data_path).load(split="test")
     
     print(len(corpus), len(queries), len(qrels))
@@ -44,17 +42,19 @@ def main(config: DictConfig) -> None:
     model = AutoModelForSeq2SeqLM.from_pretrained(config['generator']['model_name_or_path'])
     model = model.to(device)
 
-    sents = []
-    # for k, v in tqdm(corpus.items()):
-    #     sents.append([0] + tokenizer.encode(v['text'], truncation=True, max_length=128) + [-1, k])
-    # trie = Trie(sents)
 
-    # with open(f'results/{dataset}_128_trie.pkl', 'wb') as f:
-    #     pickle.dump(trie.trie_dict, f)
+    if config['create_trie']:
+        sents = []
+        for k, v in tqdm(corpus.items()):
+            sents.append([0] + tokenizer.encode(v['text'], truncation=True, max_length=128) + [-1, k])
+        trie = Trie(sents)
 
-    with open(f'results/{dataset}_128_trie.pkl', 'rb') as f:
-        trie_dict = pickle.load(f)
-    trie = Trie.load_from_dict(trie_dict)
+        with open(f'results/{dataset}_128_trie.pkl', 'wb') as f:
+            pickle.dump(trie.trie_dict, f)
+    else:
+        with open(f'results/{dataset}_128_trie.pkl', 'rb') as f:
+            trie_dict = pickle.load(f)
+        trie = Trie.load_from_dict(trie_dict)
 
     def prefix_allowed_fn(batch_id, sent):
         # print(batch_id, sent)
@@ -64,31 +64,31 @@ def main(config: DictConfig) -> None:
             trie_out = []
         return trie_out
 
-    # print(trie.get([]))
     template = config['templates']['template']
     print(template)
 
+    ndcg = evaluate.load('ndcg.py', experiment_id='ndcg')
+    recall = evaluate.load('recall.py', experiment_id='recall')
+
     total_num = 0
     correct_num = 0
+    errors = []
     for i, (q_id, c) in enumerate(tqdm(qrels.items())):
         if i > max_gen:
             break
         input_str = template.replace('[QUERY]', queries[q_id])
-        input_ids = tokenizer(input_str, return_tensors="pt").input_ids.to(device)
-        input_len = input_ids.size(1)
+        input_ids = tokenizer(input_str, return_tensors="pt", max_length=350, truncation=True).input_ids.to(device)
 
         outputs = model.generate(
             input_ids,
             max_new_tokens=128,
             prefix_allowed_tokens_fn=prefix_allowed_fn,
             num_beams=10,
-            num_return_sequences=1,
+            num_return_sequences=10,
             remove_invalid_values=True,
             use_cache=True,
         )
 
-        # print(tokenizer.decode(input_ids[0], skip_special_tokens=True))
-        # print(tokenizer.decode(outputs[0], skip_special_tokens=True))
         cid_list = []
         for output in outputs:
             out_list = output.tolist()
@@ -97,17 +97,38 @@ def main(config: DictConfig) -> None:
                 if out == 0:
                     break
                 temp.append(out)
-            cid_list.append(trie.get(temp + [-1])[0])
-        # c_id = trie.get(outputs[0].tolist() + [-1])[0]
-        # print(corpus[c_id]['text'])
-        # print(c_id)
-        # print(c)
+            try:
+                cid_list.append(trie.get(temp + [-1])[0])
+            except:
+                errors.append(temp)
+            
         total_num += 1
         for c_id in cid_list:
             if c_id in c:
                 correct_num += 1
 
+        predictions = [1 for i in range(len(cid_list))]
+        references = []
+        for cid in cid_list:
+            if cid in c:
+                references.append(1)
+            else:
+                references.append(0)
+
+        ndcg.add(references=references, predictions=predictions)
+        recall.add(references=references, predictions=predictions)
+
     print(correct_num, total_num, correct_num / total_num)
+    ndcg_results = ndcg.compute(k=[1,5,10])
+    recall_results = recall.compute(k=[1,5,10])
+    print(ndcg_results)
+    print(recall_results)
+    print(errors)
+    p = Path(config['save_path'])
+    p.mkdir(parents=True, exist_ok=True)
+    with open(config['save_file'], "w") as f_out:
+        for metric in [ndcg_results, recall_results]:
+            f_out.write(json.dumps(metric, ensure_ascii=False) + "\n")
 
 if __name__ == "__main__":
     main()

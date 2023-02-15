@@ -1,2 +1,2 @@
-template_name: "t_fact"
-template: "Generate a Wikipedia paragraph to verify this Claim. Claim: [QUERY]. Output: "
+template_name: "fever"
+template: "Please write a Wikipedia passage to verify this Claim.\nClaim: [QUERY]\nPassage: "

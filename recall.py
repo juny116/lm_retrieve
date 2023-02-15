@@ -114,6 +114,7 @@ class Recall(evaluate.Metric):
         k=None
     ):
         results = {}
+
         if hasattr(k, "__iter__"):
             for i in k:
                 sum_recall = 0
