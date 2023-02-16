@@ -12,12 +12,13 @@ max_gen: 1000000000000
 max_print: 5
 create_trie: False
 max_length: 128
+num_beams: 10
 
 syn_doc_path: ./${generation_path}/${task}/${generator.name}
 syn_doc_file: ${syn_doc_path}/${templates.template_name}.pkl
 
 save_path: ./${output_path}/${task}/${generator.name}/${retriever.name}
-save_file: ${save_path}/${templates.template_name}_${method}.jsonl
+save_file: ${save_path}/${templates.template_name}_${method}_${num_beams}.jsonl
 corpus_embedding_path: ${corpus_path}/${task}
 corpus_embedding_file: ${corpus_embedding_path}/${retriever.name}.pkl
 

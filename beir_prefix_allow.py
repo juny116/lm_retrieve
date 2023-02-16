@@ -83,7 +83,7 @@ def main(config: DictConfig) -> None:
             input_ids,
             max_new_tokens=128,
             prefix_allowed_tokens_fn=prefix_allowed_fn,
-            num_beams=10,
+            num_beams=config['num_beams'],
             num_return_sequences=10,
             remove_invalid_values=True,
             use_cache=True,

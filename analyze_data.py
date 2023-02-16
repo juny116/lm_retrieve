@@ -19,6 +19,7 @@ from trie import Trie
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from tqdm import tqdm
 from time import time
+import numpy as np
 
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
@@ -41,15 +42,22 @@ def main(config: DictConfig) -> None:
 
     print(len(corpus), len(queries), len(qrels))
 
-    with open(f'results/{dataset}_trie.pkl', 'rb') as f:
-        trie_dict = pickle.load(f)
-    trie = Trie.load_from_dict(trie_dict)
-    
-    print(trie.get([]))
-    print(trie.get([1300]))
-    print(trie.get([1300, 37]))
-    print(trie.get([1300, 37, 3]))
-    print(trie.get([1300, 37, 3, 2]))
+    for q in queries:
+        print(q, queries[q])
+        break
+    for c in corpus:
+        print(c, corpus[c]['text'])
+        break
 
+    tokenizer = AutoTokenizer.from_pretrained(config['generator']['model_name_or_path'], max_length=2048)
+
+    token_lenghts = []
+    for c in tqdm(corpus):
+        token_lenghts.append(len(tokenizer.encode(corpus[c]['text'], max_length=2048, truncation=True)))
+
+    hist, bins = np.histogram(token_lenghts, bins=20)
+    print(hist)
+    print(bins)
+    print(f"{np.mean(token_lenghts)} {np.median(token_lenghts)} {np.std(token_lenghts)}")
 if __name__ == "__main__":
     main()

@@ -5,6 +5,7 @@ results
 legacy
 corpus_embeddings
 scripts
+sandbox
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
