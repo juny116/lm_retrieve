@@ -1,0 +1,2 @@
+template_name: trec-covid_def
+template: "Definition: write a scientific paper passage to answer the following Question. Question: [QUERY] Output: "

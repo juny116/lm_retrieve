@@ -1,0 +1,2 @@
+template_name: quora_def
+template: "Definition: write a Quora question that has same meaning with the following Question. Question: [QUERY] Output: "

@@ -1,0 +1,2 @@
+template_name: "fever_def"
+template: "Definition: write a Wikipedia passage to verify the following Claim. Claim: [QUERY] Output: "

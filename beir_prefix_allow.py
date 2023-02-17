@@ -39,7 +39,7 @@ def main(config: DictConfig) -> None:
     
     print(len(corpus), len(queries), len(qrels))
     tokenizer = AutoTokenizer.from_pretrained(config['generator']['model_name_or_path'])
-    model = AutoModelForSeq2SeqLM.from_pretrained(config['generator']['model_name_or_path'])
+    model = AutoModelForSeq2SeqLM.from_pretrained(config['generator']['model_name_or_path']).half()
     model = model.to(device)
 
 

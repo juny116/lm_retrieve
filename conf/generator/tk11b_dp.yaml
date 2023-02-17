@@ -1,0 +1,10 @@
+name: tk11b_dp
+model_name_or_path: allenai/tk-instruct-11b-def-pos
+hidden_size: 1024
+
+do_sample: True
+max_length: 500
+top_k: 30
+top_p: 0.95
+min_length: 100
+num_return_sequences: 3

@@ -1,0 +1,2 @@
+template_name: scifact_def
+template: "Definition: write a scientific paper passage to support/refute the following Claim. Claim: [QUERY] Output: "
