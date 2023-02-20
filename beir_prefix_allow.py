@@ -43,16 +43,25 @@ def main(config: DictConfig) -> None:
     model = model.to(device)
 
 
+    if config['chunk_corpus']:
+        trie_path = f'results/{dataset}_{config["max_length"]}_chunk_trie.pkl'
+    else:
+        trie_path = f'results/{dataset}_{config["max_length"]}_trie.pkl'
     if config['create_trie']:
         sents = []
         for k, v in tqdm(corpus.items()):
-            sents.append([0] + tokenizer.encode(v['text'], truncation=True, max_length=128) + [-1, k])
+            if config['chunk_corpus']:
+                tokenized_input = tokenizer.encode(v['text'])
+                num_chunks = len(tokenized_input) // config['max_length']
+                for i in range(num_chunks):
+                    sents.append([0] + tokenized_input[i*config['max_length']:(i+1)*config['max_length']] + [-1, k])
+            else:
+                sents.append([0] + tokenizer.encode(v['text'], truncation=True, max_length=config['max_length']) + [-1, k])
         trie = Trie(sents)
-
-        with open(f'results/{dataset}_128_trie.pkl', 'wb') as f:
+        with open(trie_path, 'wb') as f:
             pickle.dump(trie.trie_dict, f)
     else:
-        with open(f'results/{dataset}_128_trie.pkl', 'rb') as f:
+        with open(trie_path, 'rb') as f:
             trie_dict = pickle.load(f)
         trie = Trie.load_from_dict(trie_dict)
 
@@ -60,6 +69,9 @@ def main(config: DictConfig) -> None:
         # print(batch_id, sent)
         sent = sent.tolist()
         trie_out = trie.get(sent)
+        if -1 in trie_out:
+            print(trie_out)
+            return []
         if trie_out == [-1]:
             trie_out = []
         return trie_out
@@ -81,7 +93,7 @@ def main(config: DictConfig) -> None:
 
         outputs = model.generate(
             input_ids,
-            max_new_tokens=128,
+            max_new_tokens=config['max_length'],
             prefix_allowed_tokens_fn=prefix_allowed_fn,
             num_beams=config['num_beams'],
             num_return_sequences=10,
@@ -119,11 +131,11 @@ def main(config: DictConfig) -> None:
         recall.add(references=references, predictions=predictions)
 
     print(correct_num, total_num, correct_num / total_num)
+    print(errors)
     ndcg_results = ndcg.compute(k=[1,5,10])
     recall_results = recall.compute(k=[1,5,10])
     print(ndcg_results)
     print(recall_results)
-    print(errors)
     p = Path(config['save_path'])
     p.mkdir(parents=True, exist_ok=True)
     with open(config['save_file'], "w") as f_out:

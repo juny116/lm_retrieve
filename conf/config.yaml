@@ -13,6 +13,7 @@ max_print: 5
 create_trie: False
 max_length: 128
 num_beams: 10
+chunk_corpus: False
 
 syn_doc_path: ./${generation_path}/${task}/${generator.name}
 syn_doc_file: ${syn_doc_path}/${templates.template_name}.pkl
