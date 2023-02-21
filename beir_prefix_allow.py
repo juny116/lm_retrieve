@@ -79,8 +79,8 @@ def main(config: DictConfig) -> None:
     template = config['templates']['template']
     print(template)
 
-    ndcg = evaluate.load('ndcg.py', experiment_id='ndcg')
-    recall = evaluate.load('recall.py', experiment_id='recall')
+    ndcg = evaluate.load('metric/ndcg.py', experiment_id='ndcg')
+    recall = evaluate.load('metric/recall.py', experiment_id='recall')
 
     total_num = 0
     correct_num = 0
