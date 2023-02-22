@@ -19,7 +19,7 @@ syn_doc_path: ./${generation_path}/${task}/${generator.name}
 syn_doc_file: ${syn_doc_path}/${templates.template_name}.pkl
 
 save_path: ./${output_path}/${task}/${generator.name}/${retriever.name}
-save_file: ${save_path}/${templates.template_name}_${method}_${num_beams}.jsonl
+save_file: ${save_path}/${templates.template_name}_${method}_${num_beams}_${max_length}_chunk-${chunk_corpus}.jsonl
 corpus_embedding_path: ${corpus_path}/${task}
 corpus_embedding_file: ${corpus_embedding_path}/${retriever.name}.pkl
 

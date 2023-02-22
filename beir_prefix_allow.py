@@ -39,7 +39,7 @@ def main(config: DictConfig) -> None:
     
     print(len(corpus), len(queries), len(qrels))
     tokenizer = AutoTokenizer.from_pretrained(config['generator']['model_name_or_path'])
-    model = AutoModelForSeq2SeqLM.from_pretrained(config['generator']['model_name_or_path']).half()
+    model = AutoModelForSeq2SeqLM.from_pretrained(config['generator']['model_name_or_path'])
     model = model.to(device)
 
 
@@ -51,12 +51,15 @@ def main(config: DictConfig) -> None:
         sents = []
         for k, v in tqdm(corpus.items()):
             if config['chunk_corpus']:
-                tokenized_input = tokenizer.encode(v['text'])
+                tokenized_input = tokenizer.encode(v['text'], max_length=2048)
                 num_chunks = len(tokenized_input) // config['max_length']
                 for i in range(num_chunks):
                     sents.append([0] + tokenized_input[i*config['max_length']:(i+1)*config['max_length']] + [-1, k])
             else:
                 sents.append([0] + tokenizer.encode(v['text'], truncation=True, max_length=config['max_length']) + [-1, k])
+        if config['chunk_corpus']:
+            print(f'num chunks: {num_chunks}')
+        print(f'num sents: {len(sents)}')
         trie = Trie(sents)
         with open(trie_path, 'wb') as f:
             pickle.dump(trie.trie_dict, f)
@@ -69,11 +72,12 @@ def main(config: DictConfig) -> None:
         # print(batch_id, sent)
         sent = sent.tolist()
         trie_out = trie.get(sent)
-        if -1 in trie_out:
+        if len(trie_out) > 1 and -1 in trie_out:
             print(trie_out)
-            return []
+            return [0]
         if trie_out == [-1]:
-            trie_out = []
+            # print(trie_out)
+            trie_out = [0]
         return trie_out
 
     template = config['templates']['template']
@@ -89,11 +93,11 @@ def main(config: DictConfig) -> None:
         if i > max_gen:
             break
         input_str = template.replace('[QUERY]', queries[q_id])
-        input_ids = tokenizer(input_str, return_tensors="pt", max_length=350, truncation=True).input_ids.to(device)
+        input_ids = tokenizer(input_str, return_tensors="pt", max_length=2048, truncation=True).input_ids.to(device)
 
         outputs = model.generate(
             input_ids,
-            max_new_tokens=config['max_length'],
+            max_new_tokens=config['max_length']+1,
             prefix_allowed_tokens_fn=prefix_allowed_fn,
             num_beams=config['num_beams'],
             num_return_sequences=10,
@@ -103,6 +107,8 @@ def main(config: DictConfig) -> None:
 
         cid_list = []
         for output in outputs:
+            # print(output.tolist())
+            # print(tokenizer.decode(output.tolist()))
             out_list = output.tolist()
             temp = [out_list[0]]
             for out in out_list[1:]:
@@ -111,9 +117,14 @@ def main(config: DictConfig) -> None:
                 temp.append(out)
             try:
                 cid_list.append(trie.get(temp + [-1])[0])
+                if trie.get(temp + [-1])[0] == []:
+                    print(q_id, c, temp)
+                    return
+                # else:
+                #     print(q_id, c, trie.get(temp + [-1])[0])
             except:
                 errors.append(temp)
-            
+        
         total_num += 1
         for c_id in cid_list:
             if c_id in c:
