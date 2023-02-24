@@ -57,8 +57,6 @@ def main(config: DictConfig) -> None:
                     sents.append([0] + tokenized_input[i*config['max_length']:(i+1)*config['max_length']] + [-1, k])
             else:
                 sents.append([0] + tokenizer.encode(v['text'], truncation=True, max_length=config['max_length']) + [-1, k])
-        if config['chunk_corpus']:
-            print(f'num chunks: {num_chunks}')
         print(f'num sents: {len(sents)}')
         trie = Trie(sents)
         with open(trie_path, 'wb') as f:
@@ -88,6 +86,8 @@ def main(config: DictConfig) -> None:
 
     total_num = 0
     correct_num = 0
+    num_not_unique = 0
+    num_duplicates = 0
     errors = []
     for i, (q_id, c) in enumerate(tqdm(qrels.items())):
         if i > max_gen:
@@ -100,7 +100,7 @@ def main(config: DictConfig) -> None:
             max_new_tokens=config['max_length']+1,
             prefix_allowed_tokens_fn=prefix_allowed_fn,
             num_beams=config['num_beams'],
-            num_return_sequences=10,
+            num_return_sequences=config['num_beams'],
             remove_invalid_values=True,
             use_cache=True,
         )
@@ -116,7 +116,11 @@ def main(config: DictConfig) -> None:
                     break
                 temp.append(out)
             try:
-                cid_list.append(trie.get(temp + [-1])[0])
+                if len(trie.get(temp + [-1])) > 1:
+                    num_not_unique += 1
+                for cid in trie.get(temp + [-1]):
+                    cid_list.append(cid)
+                # cid_list.append(trie.get(temp + [-1])[0])
                 if trie.get(temp + [-1])[0] == []:
                     print(q_id, c, temp)
                     return
@@ -130,9 +134,24 @@ def main(config: DictConfig) -> None:
             if c_id in c:
                 correct_num += 1
 
-        predictions = [1 for i in range(len(cid_list))]
+
         references = []
+        cid_unique_list = []
         for cid in cid_list:
+            if cid not in cid_unique_list:
+                cid_unique_list.append(cid)
+        
+        if len(cid_unique_list) != len(cid_list):
+            num_duplicates += 1
+
+        if len(cid_unique_list) > 10:
+            cid_unique_list = cid_unique_list[:10]
+        elif len(cid_unique_list) < 10:
+            cid_unique_list += [-1] * (10 - len(cid_unique_list))
+
+        predictions = [1 for i in range(len(cid_unique_list))]
+        
+        for cid in cid_unique_list:
             if cid in c:
                 references.append(1)
             else:
@@ -142,6 +161,7 @@ def main(config: DictConfig) -> None:
         recall.add(references=references, predictions=predictions)
 
     print(correct_num, total_num, correct_num / total_num)
+    print(num_not_unique, num_duplicates)
     print(errors)
     ndcg_results = ndcg.compute(k=[1,5,10])
     recall_results = recall.compute(k=[1,5,10])
