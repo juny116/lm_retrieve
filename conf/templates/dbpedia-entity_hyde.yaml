@@ -1,0 +1,2 @@
+template_name: dbpedia_hyde
+template: "Please write a passage to answer the question.\nQuestion: [QUERY]\nPassage:"

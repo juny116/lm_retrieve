@@ -42,6 +42,8 @@ def main(config: DictConfig) -> None:
 
     print(len(corpus), len(queries), len(qrels))
 
+    template = config['templates']['template']
+
     for q in queries:
         print(q, queries[q])
         break
@@ -51,13 +53,22 @@ def main(config: DictConfig) -> None:
 
     tokenizer = AutoTokenizer.from_pretrained(config['generator']['model_name_or_path'], max_length=2048)
 
-    token_lenghts = []
-    for c in tqdm(corpus):
-        token_lenghts.append(len(tokenizer.encode(corpus[c]['text'], max_length=2048, truncation=True)))
+    q_token_lenghts = []
+    qt_token_lenghts = []
+    for q in tqdm(queries):
+        q_token_lenghts.append(len(tokenizer.encode(queries[q], max_length=2048, truncation=True)))
+        input_str = template.replace('[QUERY]', queries[q])
+        qt_token_lenghts.append(len(tokenizer.encode(input_str, max_length=2048, truncation=True)))
 
-    hist, bins = np.histogram(token_lenghts, bins=20)
+    c_token_lenghts = []
+    for c in tqdm(corpus):
+        c_token_lenghts.append(len(tokenizer.encode(corpus[c]['text'], max_length=2048, truncation=True)))
+
+    hist, bins = np.histogram(c_token_lenghts, bins=20)
     print(hist)
     print(bins)
-    print(f"{np.mean(token_lenghts)} {np.median(token_lenghts)} {np.std(token_lenghts)}")
+    print(f"{np.mean(c_token_lenghts)} {np.median(c_token_lenghts)} {np.std(c_token_lenghts)}")
+    print(f"{np.mean(q_token_lenghts)} {np.median(q_token_lenghts)} {np.std(q_token_lenghts)}")
+    print(f"{np.mean(qt_token_lenghts)} {np.median(qt_token_lenghts)} {np.std(qt_token_lenghts)}")
 if __name__ == "__main__":
     main()

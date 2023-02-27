@@ -1,0 +1,2 @@
+template_name: arguana_hyde
+template: "Please write a counter argument for the passage\nPassage: [QUERY]\nCounter Argument:"

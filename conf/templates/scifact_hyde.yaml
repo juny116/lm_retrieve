@@ -1,0 +1,2 @@
+template_name: "scifact_hyde"
+template: "Please write a scientific paper passage to support/refute the claim\nClaim: [QUERY]\nPassage:"
