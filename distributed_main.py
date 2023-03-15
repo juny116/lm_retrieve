@@ -184,24 +184,24 @@ def main(config: DictConfig) -> None:
                 errors.append(temp)
             
 
-        predictions = [1 for i in range(len(cid_list))]
-        references = []
+        # predictions = [1 for i in range(len(cid_list))]
+        predictions = []
         for cid in cid_list:
             if cid in batch['corpus_id'][0]:
-                references.append(1)
+                predictions.append(1)
             else:
-                references.append(0)
+                predictions.append(0)
 
-        ndcg.add(references=references, predictions=predictions)
-        recall.add(references=references, predictions=predictions)
+        ndcg.add(predictions=predictions)
+        # recall.add(references=references, predictions=predictions)
         progressbar.update(1)
 
     print(errors)
     ndcg_results = ndcg.compute(k=[1,5,10])
-    recall_results = recall.compute(k=[1,5,10])
+    # recall_results = recall.compute(k=[1,5,10])
     if local_rank == 0:
         logger.info(ndcg_results)
-        logger.info(recall_results)
+        # logger.info(recall_results)
 
 if __name__ == "__main__":
     main()

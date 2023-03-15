@@ -1,6 +1,7 @@
 import evaluate
 from sklearn.metrics import ndcg_score
 import datasets
+import numpy as np
 
 _DESCRIPTION = """
 Compute Normalized Discounted Cumulative Gain.
@@ -96,26 +97,43 @@ class nDCG(evaluate.Metric):
             reference_urls=["https://scikit-learn.org/stable/modules/generated/sklearn.metrics.ndcg_score.html"],
         )
 
-    def _compute(self, predictions, references, sample_weight=None, k=None, ignore_ties=False):
+    def _compute(self, predictions, references=None, sample_weight=None, k=None, ignore_ties=False):
         results = {}
+        predictions = np.array(predictions)
+        # references = np.array(references)
+        total_size = predictions.shape[1]
+
+        answer_count = predictions.sum(1).astype(np.int64)
+        
         if hasattr(k, "__iter__"):
             for i in k:
-                score = ndcg_score(y_true=references,
-                                y_score=predictions,
-                                k=i,
-                                sample_weight=sample_weight,
-                                ignore_ties=ignore_ties
-                                )
-                results["nDCG@" + str(i)] = score
+                positions = np.arange(1, i + 1)
+                weights = 1 / np.log2(positions + 1)
+                hit_per_pos = predictions[:,:i]
+                dcg = (hit_per_pos * weights).sum(1)
+                idcg = [weights[:min(n, i)].sum() for n in answer_count]
+                idcg = [w if w != 0 else 1 for w in idcg]
+                ndcgs = dcg / idcg
+
+                results["nDCG@" + str(i)] = np.average(ndcgs)
         else:
-            score = ndcg_score(y_true=references,
-                            y_score=predictions,
-                            k=k,
-                            sample_weight=sample_weight,
-                            ignore_ties=ignore_ties
-                            )
             if k is None:
-                results["nDCG"] = score
+                positions = np.arange(1, total_size + 1)
+                weights = 1 / np.log2(positions + 1)
+                hit_per_pos = predictions
+                dcg = (hit_per_pos * weights).sum(1)
+                idcg = [weights[:min(n, total_size)].sum() for n in answer_count]
+                idcg = [w if w != 0 else 1 for w in idcg]
+                ndcgs = dcg / idcg
+                results["nDCG"] = np.average(ndcgs)
             else:
-                results["nDCG@" + str(k)] = score
+                positions = np.arange(1, k + 1)
+                weights = 1 / np.log2(positions + 1)
+                hit_per_pos = predictions[:,:k]
+                dcg = (hit_per_pos * weights).sum(1)
+                idcg = [weights[:min(n, k)].sum() for n in answer_count]
+                idcg = [w if w != 0 else 1 for w in idcg]
+                ndcgs = dcg / idcg
+
+                results["nDCG@" + str(k)] = np.average(ndcgs)
         return results

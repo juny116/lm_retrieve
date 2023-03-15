@@ -82,7 +82,7 @@ def main(config: DictConfig) -> None:
     print(template)
 
     ndcg = evaluate.load('metric/ndcg.py', experiment_id='ndcg')
-    recall = evaluate.load('metric/recall.py', experiment_id='recall')
+    # recall = evaluate.load('metric/recall.py', experiment_id='recall')
 
     total_num = 0
     correct_num = 0
@@ -135,7 +135,7 @@ def main(config: DictConfig) -> None:
                 correct_num += 1
 
 
-        references = []
+        predictions = []
         cid_unique_list = []
         for cid in cid_list:
             if cid not in cid_unique_list:
@@ -149,28 +149,29 @@ def main(config: DictConfig) -> None:
         elif len(cid_unique_list) < 10:
             cid_unique_list += [-1] * (10 - len(cid_unique_list))
 
-        predictions = [1 for i in range(len(cid_unique_list))]
+        # predictions = [1 for i in range(len(cid_unique_list))]
         
         for cid in cid_unique_list:
             if cid in c:
-                references.append(1)
+                predictions.append(1)
             else:
-                references.append(0)
+                predictions.append(0)
 
-        ndcg.add(references=references, predictions=predictions)
-        recall.add(references=references, predictions=predictions)
+        ndcg.add(predictions=predictions)
+        # recall.add(references=references, predictions=predictions)
 
     print(correct_num, total_num, correct_num / total_num)
     print(num_not_unique, num_duplicates)
     print(errors)
     ndcg_results = ndcg.compute(k=[1,5,10])
-    recall_results = recall.compute(k=[1,5,10])
+    # recall_results = recall.compute(k=[1,5,10])
     print(ndcg_results)
-    print(recall_results)
+    # print(recall_results)
     p = Path(config['save_path'])
     p.mkdir(parents=True, exist_ok=True)
     with open(config['save_file'], "w") as f_out:
-        for metric in [ndcg_results, recall_results]:
+        # for metric in [ndcg_results, recall_results]:
+        for metric in [ndcg_results]:
             f_out.write(json.dumps(metric, ensure_ascii=False) + "\n")
 
 if __name__ == "__main__":
