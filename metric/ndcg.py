@@ -100,21 +100,29 @@ class nDCG(evaluate.Metric):
     def _compute(self, predictions, references=None, sample_weight=None, k=None, ignore_ties=False):
         results = {}
         predictions = np.array(predictions)
-        # references = np.array(references)
+        references = np.array(references)
         total_size = predictions.shape[1]
 
-        answer_count = predictions.sum(1).astype(np.int64)
-        
+        answer_count = references.sum(1).astype(np.int64)
+        print(answer_count)
         if hasattr(k, "__iter__"):
             for i in k:
                 positions = np.arange(1, i + 1)
+                print(positions)
                 weights = 1 / np.log2(positions + 1)
+                print(weights)
                 hit_per_pos = predictions[:,:i]
-                dcg = (hit_per_pos * weights).sum(1)
+                print(hit_per_pos)
+                temp = hit_per_pos * weights
+                print(temp)
+                dcg = temp.sum(1)
+                print(dcg)
+                # dcg = (hit_per_pos * weights).sum(1)
                 idcg = [weights[:min(n, i)].sum() for n in answer_count]
-                idcg = [w if w != 0 else 1 for w in idcg]
+                idcg = [w if w != 0 else 0.1 for w in idcg]
+                print(idcg)
                 ndcgs = dcg / idcg
-
+                print(ndcgs)
                 results["nDCG@" + str(i)] = np.average(ndcgs)
         else:
             if k is None:
@@ -123,7 +131,7 @@ class nDCG(evaluate.Metric):
                 hit_per_pos = predictions
                 dcg = (hit_per_pos * weights).sum(1)
                 idcg = [weights[:min(n, total_size)].sum() for n in answer_count]
-                idcg = [w if w != 0 else 1 for w in idcg]
+                idcg = [w if w != 0 else 0.1 for w in idcg]
                 ndcgs = dcg / idcg
                 results["nDCG"] = np.average(ndcgs)
             else:
@@ -132,7 +140,7 @@ class nDCG(evaluate.Metric):
                 hit_per_pos = predictions[:,:k]
                 dcg = (hit_per_pos * weights).sum(1)
                 idcg = [weights[:min(n, k)].sum() for n in answer_count]
-                idcg = [w if w != 0 else 1 for w in idcg]
+                idcg = [w if w != 0 else 0.1 for w in idcg]
                 ndcgs = dcg / idcg
 
                 results["nDCG@" + str(k)] = np.average(ndcgs)

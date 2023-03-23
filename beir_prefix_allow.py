@@ -10,11 +10,14 @@ from omegaconf import DictConfig
 from beir import util, LoggingHandler
 from beir.datasets.data_loader import GenericDataLoader
 from beir.datasets.data_loader_hf import HFDataLoader
+from beir.retrieval.evaluation import EvaluateRetrieval
 from trie import Trie
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, T5ForConditionalGeneration, T5Config
 from tqdm import tqdm
 from time import time
 import evaluate
+from accelerate import init_empty_weights, infer_auto_device_map
+import numpy as np
 
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
@@ -27,7 +30,6 @@ def main(config: DictConfig) -> None:
     #### /print debug information to stdout
 
     #### Download scifact.zip dataset and unzip the dataset
-
     dataset = config['task']
     url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(dataset)
     out_dir = '/datasets/datasets/beir'
@@ -38,15 +40,28 @@ def main(config: DictConfig) -> None:
     corpus, queries, qrels = GenericDataLoader(data_path).load(split="test")
     
     print(len(corpus), len(queries), len(qrels))
-    tokenizer = AutoTokenizer.from_pretrained(config['generator']['model_name_or_path'])
-    model = AutoModelForSeq2SeqLM.from_pretrained(config['generator']['model_name_or_path'])
-    model = model.to(device)
+    if config['generator']['name'] == 'flan-ul2':
+        model_id = config['generator']['model_name_or_path']
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        model_config = T5Config.from_pretrained(model_id)
 
+        max_memory={i: "48GiB" for i in range(8)}  # Assume 4 GPUs
+        max_memory[0] = "20GiB"  # to fit lm_head to the same device as the inputs
+
+        with init_empty_weights():
+            model = T5ForConditionalGeneration(model_config)
+            device_map = infer_auto_device_map(model, no_split_module_classes=["T5Block"], dtype=torch.float16, max_memory=max_memory)
+        device_map['lm_head'] = device_map["decoder.embed_tokens"]
+        model = T5ForConditionalGeneration.from_pretrained(model_id, device_map=device_map, torch_dtype=torch.float16)
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(config['generator']['model_name_or_path'])
+        model = AutoModelForSeq2SeqLM.from_pretrained(config['generator']['model_name_or_path'])
+        model = model.to(device)
 
     if config['chunk_corpus']:
-        trie_path = f'results/{dataset}_{config["max_length"]}_chunk_trie.pkl'
+        trie_path = f'results/{dataset}_{config["max_length"]}_{config["generator"]["name"]}_chunk_trie.pkl'
     else:
-        trie_path = f'results/{dataset}_{config["max_length"]}_trie.pkl'
+        trie_path = f'results/{dataset}_{config["max_length"]}_{config["generator"]["name"]}_trie.pkl'
     if config['create_trie']:
         sents = []
         for k, v in tqdm(corpus.items()):
@@ -74,22 +89,23 @@ def main(config: DictConfig) -> None:
             print(trie_out)
             return [0]
         if trie_out == [-1]:
-            # print(trie_out)
             trie_out = [0]
         return trie_out
 
     template = config['templates']['template']
     print(template)
 
-    ndcg = evaluate.load('metric/ndcg.py', experiment_id='ndcg')
-    # recall = evaluate.load('metric/recall.py', experiment_id='recall')
-
-    total_num = 0
-    correct_num = 0
-    num_not_unique = 0
-    num_duplicates = 0
+    def compute_dcg_at_k(relevances, k):
+        dcg = 0
+        for i in range(min(len(relevances), k)):
+            dcg += relevances[i] / np.log2(i + 2)  # +2 as we start our idx at 0
+        return dcg
+    # ndcg_old = evaluate.load('metric/ndcg.py', experiment_id='ndcg')
+    # ndcg = {"ndcg_at_" + str(k): [] for k in [5]}
     errors = []
+    results = {}
     for i, (q_id, c) in enumerate(tqdm(qrels.items())):
+        results[q_id] = {}
         if i > max_gen:
             break
         input_str = template.replace('[QUERY]', queries[q_id])
@@ -102,13 +118,11 @@ def main(config: DictConfig) -> None:
             num_beams=config['num_beams'],
             num_return_sequences=config['num_beams'],
             remove_invalid_values=True,
-            use_cache=True,
+            output_scores=True,
+            return_dict_in_generate=True,
         )
 
-        cid_list = []
-        for output in outputs:
-            # print(output.tolist())
-            # print(tokenizer.decode(output.tolist()))
+        for output, score in zip(outputs.sequences, torch.exp(outputs.sequences_scores)):
             out_list = output.tolist()
             temp = [out_list[0]]
             for out in out_list[1:]:
@@ -116,63 +130,51 @@ def main(config: DictConfig) -> None:
                     break
                 temp.append(out)
             try:
-                if len(trie.get(temp + [-1])) > 1:
-                    num_not_unique += 1
-                for cid in trie.get(temp + [-1]):
-                    cid_list.append(cid)
-                # cid_list.append(trie.get(temp + [-1])[0])
-                if trie.get(temp + [-1])[0] == []:
-                    print(q_id, c, temp)
-                    return
-                # else:
-                #     print(q_id, c, trie.get(temp + [-1])[0])
+                retrieved = trie.get(temp + [-1])
+                for cid in retrieved:
+                    if cid not in results[q_id]:
+                        results[q_id][cid] = score.item()
+                        # results[q_id][cid] = 1
             except:
                 errors.append(temp)
-        
-        total_num += 1
-        for c_id in cid_list:
-            if c_id in c:
-                correct_num += 1
+        # print(results[q_id])
+
+        # # NDCG@k
+        # for k_val in [5]:
+        #     predicted_relevance = [
+        #         1 if top_hit in c else 0 for top_hit in list(results[q_id].keys())[0:k_val]
+        #     ]
+        #     true_relevances = [1] * len(c)
+        #     dcg = compute_dcg_at_k(predicted_relevance, k_val)
+        #     print(dcg)
+        #     idcg = compute_dcg_at_k(true_relevances, k_val)
+        #     print(idcg)
+        #     ndcg_value = dcg / idcg 
+        #     print(ndcg_value)
+        #     ndcg["ndcg_at_" + str(k_val)].append(ndcg_value)
+        #     true_relevances = ([1] * len(c) + [0] * (k_val - len(c)))[:k_val]
+        #     ndcg_old.add(predictions=predicted_relevance, reference=true_relevances)
+
+        for cid in corpus:
+            if cid not in results[q_id]:
+                results[q_id][cid] = 0
+    # for k in ndcg:
+    #     ndcg[k] = np.mean(ndcg[k])
+    # print(ndcg)
+    # ndcg_results = ndcg_old.compute(k=[5])
+    # print(ndcg_results)
+    retriever = EvaluateRetrieval()
+    ndcg, _map, recall, precision = retriever.evaluate(qrels, results, retriever.k_values)
 
 
-        predictions = []
-        cid_unique_list = []
-        for cid in cid_list:
-            if cid not in cid_unique_list:
-                cid_unique_list.append(cid)
-        
-        if len(cid_unique_list) != len(cid_list):
-            num_duplicates += 1
-
-        if len(cid_unique_list) > 10:
-            cid_unique_list = cid_unique_list[:10]
-        elif len(cid_unique_list) < 10:
-            cid_unique_list += [-1] * (10 - len(cid_unique_list))
-
-        # predictions = [1 for i in range(len(cid_unique_list))]
-        
-        for cid in cid_unique_list:
-            if cid in c:
-                predictions.append(1)
-            else:
-                predictions.append(0)
-
-        ndcg.add(predictions=predictions)
-        # recall.add(references=references, predictions=predictions)
-
-    print(correct_num, total_num, correct_num / total_num)
-    print(num_not_unique, num_duplicates)
     print(errors)
-    ndcg_results = ndcg.compute(k=[1,5,10])
-    # recall_results = recall.compute(k=[1,5,10])
-    print(ndcg_results)
-    # print(recall_results)
+    
     p = Path(config['save_path'])
     p.mkdir(parents=True, exist_ok=True)
     with open(config['save_file'], "w") as f_out:
-        # for metric in [ndcg_results, recall_results]:
-        for metric in [ndcg_results]:
+        for metric in [ndcg, _map, recall, precision]:
             f_out.write(json.dumps(metric, ensure_ascii=False) + "\n")
+
 
 if __name__ == "__main__":
     main()

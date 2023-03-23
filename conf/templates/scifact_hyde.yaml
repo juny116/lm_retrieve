@@ -1,2 +1,3 @@
 template_name: "scifact_hyde"
+system: "You are a helpful assistant that generates useful document that help the user request."
 template: "Please write a scientific paper passage to support/refute the claim\nClaim: [QUERY]\nPassage:"

@@ -77,20 +77,27 @@ def main(config: DictConfig) -> None:
             with open(config['corpus_embedding_file'], "rb") as f_in:
                 pre_build_corpus_embeddings = pickle.load(f_in)
             # logger.warn(f"WARNING: {task.description['name']} results already exists. Skipping.")
-            results, _ = retriever.retrieve(corpus, queries, corpus_embeddings=pre_build_corpus_embeddings)
+            results = retriever.retrieve(corpus, queries, corpus_embeddings=pre_build_corpus_embeddings)
         else:
             #### Retrieve dense results (format of results is identical to qrels)
-            results, corpus_embeddings = retriever.retrieve(corpus, queries)
-            corpus_embeddings = torch.cat(corpus_embeddings, dim=0)
+            results = retriever.retrieve(corpus, queries)
+            # results, corpus_embeddings = retriever.retrieve(corpus, queries)
+            # corpus_embeddings = torch.cat(corpus_embeddings, dim=0)
 
-            # save results
-            p = Path(config['corpus_embedding_path'])
-            p.mkdir(parents=True, exist_ok=True)
-            with open(config['corpus_embedding_file'], "wb") as f_out:
-                pickle.dump(corpus_embeddings, f_out)
+            # # save results
+            # p = Path(config['corpus_embedding_path'])
+            # p.mkdir(parents=True, exist_ok=True)
+            # with open(config['corpus_embedding_file'], "wb") as f_out:
+            #     pickle.dump(corpus_embeddings, f_out)
     else:
         results = retriever.retrieve(corpus, queries)
 
+    for k, v in results.items():
+        print(k, v)
+        break
+    for k, v in corpus.items():
+        print(k, v)
+        break
     #### Evaluate your retrieval using NDCG@k, MAP@K ...
     logging.info("Retriever evaluation for k in: {}".format(retriever.k_values))
     ndcg, _map, recall, precision = retriever.evaluate(qrels, results, retriever.k_values)
