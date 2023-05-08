@@ -84,45 +84,49 @@ _CITATION = """
 }
 """
 
+
 class nDCG(evaluate.Metric):
     def _info(self):
         return evaluate.MetricInfo(
             description=_DESCRIPTION,
             citation=_CITATION,
             inputs_description=_KWARGS_DESCRIPTION,
-            features=datasets.Features({
-                'predictions': datasets.Sequence(datasets.Value('float')),
-                'references': datasets.Sequence(datasets.Value('float'))
-            }),
-            reference_urls=["https://scikit-learn.org/stable/modules/generated/sklearn.metrics.ndcg_score.html"],
+            features=datasets.Features(
+                {
+                    "predictions": datasets.Sequence(datasets.Value("float")),
+                    "references": datasets.Sequence(datasets.Value("float")),
+                }
+            ),
+            reference_urls=[
+                "https://scikit-learn.org/stable/modules/generated/sklearn.metrics.ndcg_score.html"
+            ],
         )
 
-    def _compute(self, predictions, references=None, sample_weight=None, k=None, ignore_ties=False):
+    def _compute(
+        self,
+        predictions,
+        references=None,
+        sample_weight=None,
+        k=None,
+        ignore_ties=False,
+    ):
         results = {}
         predictions = np.array(predictions)
         references = np.array(references)
         total_size = predictions.shape[1]
 
         answer_count = references.sum(1).astype(np.int64)
-        print(answer_count)
         if hasattr(k, "__iter__"):
             for i in k:
                 positions = np.arange(1, i + 1)
-                print(positions)
                 weights = 1 / np.log2(positions + 1)
-                print(weights)
-                hit_per_pos = predictions[:,:i]
-                print(hit_per_pos)
+                hit_per_pos = predictions[:, :i]
                 temp = hit_per_pos * weights
-                print(temp)
                 dcg = temp.sum(1)
-                print(dcg)
                 # dcg = (hit_per_pos * weights).sum(1)
-                idcg = [weights[:min(n, i)].sum() for n in answer_count]
+                idcg = [weights[: min(n, i)].sum() for n in answer_count]
                 idcg = [w if w != 0 else 0.1 for w in idcg]
-                print(idcg)
                 ndcgs = dcg / idcg
-                print(ndcgs)
                 results["nDCG@" + str(i)] = np.average(ndcgs)
         else:
             if k is None:
@@ -130,16 +134,16 @@ class nDCG(evaluate.Metric):
                 weights = 1 / np.log2(positions + 1)
                 hit_per_pos = predictions
                 dcg = (hit_per_pos * weights).sum(1)
-                idcg = [weights[:min(n, total_size)].sum() for n in answer_count]
+                idcg = [weights[: min(n, total_size)].sum() for n in answer_count]
                 idcg = [w if w != 0 else 0.1 for w in idcg]
                 ndcgs = dcg / idcg
                 results["nDCG"] = np.average(ndcgs)
             else:
                 positions = np.arange(1, k + 1)
                 weights = 1 / np.log2(positions + 1)
-                hit_per_pos = predictions[:,:k]
+                hit_per_pos = predictions[:, :k]
                 dcg = (hit_per_pos * weights).sum(1)
-                idcg = [weights[:min(n, k)].sum() for n in answer_count]
+                idcg = [weights[: min(n, k)].sum() for n in answer_count]
                 idcg = [w if w != 0 else 0.1 for w in idcg]
                 ndcgs = dcg / idcg
 
