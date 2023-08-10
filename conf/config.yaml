@@ -7,7 +7,7 @@ output_path: results
 task: nq
 method: const_gen
 overwrite_results: False
-device: cuda:4
+device: cuda:0
 max_gen: 1000000000000
 max_print: 5
 create_trie: False

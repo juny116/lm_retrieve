@@ -1,2 +1,2 @@
 template_name: "fever"
-template: "Please write a Wikipedia passage to verify this Claim.\nClaim: [QUERY]\nPassage: "
+template: "Please write a Wikipedia passage about the Claim.\nClaim: [QUERY]\nPassage: "
