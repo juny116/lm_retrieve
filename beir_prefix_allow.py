@@ -26,11 +26,12 @@ from accelerate import init_empty_weights, infer_auto_device_map
 import numpy as np
 import tracemalloc
 from utils import display_top, convert_unit, SIZE_UNIT
+import pdb
 
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
 def main(config: DictConfig) -> None:
-    tracemalloc.start()
+    # tracemalloc.start()
     #### Just some code to print debug information to stdout
     logging.basicConfig(
         format="%(asctime)s - %(message)s",
@@ -69,13 +70,6 @@ def main(config: DictConfig) -> None:
             # max_memory={0: "20GiB", 1: "40GiB", 2: "40GiB", 3: "40GiB", 4: "40GiB"},
         ).eval()
 
-        # with torch.inference_mode():
-        #     tokenized_inputs = tokenizer(msgs, return_tensors='pt', padding=True, truncation=True, return_token_type_ids=False).to(model.device)
-        #     output_tokens = model.generate(**tokenized_inputs, **{'do_sample':False})
-        #     outputs_generated_only = output_tokens[:,tokenized_inputs["input_ids"].shape[-1]:]
-
-        #     output_texts = tokenizer.batch_decode(output_tokens, skip_special_tokens=True, spaces_between_special_tokens=False)
-
     elif config["generator"]["name"] == "flan-ul2":
         model_id = config["generator"]["model_name_or_path"]
         tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -109,6 +103,9 @@ def main(config: DictConfig) -> None:
         trie_path = f'results/{dataset}_{config["max_length"]}_{config["generator"]["name"]}_chunk_trie.pkl'
     else:
         trie_path = f'results/{dataset}_{config["max_length"]}_{config["generator"]["name"]}_trie.pkl'
+
+    # pdb.set_trace()
+
     if config["create_trie"]:
         sents = []
         for k, v in tqdm(corpus.items()):
@@ -142,6 +139,8 @@ def main(config: DictConfig) -> None:
         print("Loaded trie")
         trie = Trie.load_from_dict(trie_dict)
         print("Loaded trie from dict")
+
+    # pdb.set_trace()
 
     def prefix_allowed_fn(batch_id, sent):
         sent = sent.tolist()
@@ -207,10 +206,10 @@ def main(config: DictConfig) -> None:
         #     if cid not in results[q_id]:
         #         results[q_id][cid] = 0
 
-    print("TRACKING MEMORY")
-    snapshot = tracemalloc.take_snapshot()
-    display_top(snapshot, limit=20)
-    print("TRACKING MEMORY")
+    # print("TRACKING MEMORY")
+    # snapshot = tracemalloc.take_snapshot()
+    # display_top(snapshot, limit=20)
+    # print("TRACKING MEMORY")
 
     retriever = EvaluateRetrieval()
     ndcg, _map, recall, precision = retriever.evaluate(
